@@ -1,0 +1,108 @@
+<resources>
+    <string name="app_name">EXM WS Mail</string>
+
+    <!-- General -->
+    <string name="back">Atrás</string>
+    <string name="close">Cerrar</string>
+    <string name="send">Enviar</string>
+    <string name="refresh">Refrescar</string>
+    <string name="search">Buscar</string>
+    <string name="settings">Configuración</string>
+    <string name="delete">Borrar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="add">Añadir</string>
+    <string name="error">Error</string>
+    <string name="retry">Toca para reintentar</string>
+    <string name="loading">Cargando…</string>
+    <string name="end_reached">Has llegado al final</string>
+
+    <!-- Login -->
+    <string name="login_title">EXM WS Mail</string>
+    <string name="login_server">exmwsmail.exmworkspace.com</string>
+    <string name="login_email_label">Email</string>
+    <string name="login_email_placeholder">tu@correo.com</string>
+    <string name="login_password_label">Contraseña</string>
+    <string name="login_password_placeholder">••••••••</string>
+    <string name="login_button">Entrar</string>
+    <string name="login_show_password">Mostrar contraseña</string>
+    <string name="login_hide_password">Ocultar contraseña</string>
+
+    <!-- Mail List -->
+    <string name="folders_title">Carpetas</string>
+    <string name="no_messages">No hay mensajes en esta carpeta</string>
+    <string name="unknown_sender">(remitente desconocido)</string>
+    <string name="no_subject">(sin asunto)</string>
+    <string name="swipe_to_delete">Soltar para borrar</string>
+    <string name="swipe_to_read">Marcar como leído</string>
+    <string name="swipe_to_unread">Marcar como no leído</string>
+    <string name="filters">Filtros</string>
+    <string name="compose">Redactar</string>
+
+    <!-- Compose -->
+    <string name="new_message">Nuevo mensaje</string>
+    <string name="to_label">Para:</string>
+    <string name="cc_label">Cc:</string>
+    <string name="bcc_label">Cco:</string>
+    <string name="from_label">De:</string>
+    <string name="subject_label">Asunto:</string>
+    <string name="body_placeholder">Escribe tu mensaje…</string>
+    <string name="add_recipient">Añadir destinatario</string>
+    <string name="add_cc">Añadir copia (Cc)</string>
+    <string name="add_bcc">Añadir copia oculta (Cco)</string>
+    <string name="remove_recipient">Eliminar destinatario</string>
+    <string name="format_title">Formato</string>
+    <string name="attach_file">Adjuntar archivo</string>
+    <string name="original_message">Mensaje original</string>
+    <string name="remove_quote">Quitar mensaje original</string>
+    <string name="style_bold">Negrita</string>
+    <string name="style_italic">Cursiva</string>
+    <string name="style_underline">Subrayado</string>
+    <string name="style_strike">Tachado</string>
+    <string name="list_bullet">Viñetas</string>
+    <string name="list_numbered">Numeración</string>
+    <string name="align_left">Alinear izquierda</string>
+    <string name="align_center">Alinear centro</string>
+    <string name="align_right">Alinear derecha</string>
+    <string name="font_family">Tipo: %1$s</string>
+    <string name="font_size_decrease">Reducir tamaño</string>
+    <string name="font_size_increase">Aumentar tamaño</string>
+
+    <!-- Categories -->
+    <string name="cat_all">Todo</string>
+    <string name="cat_unread">No leídos</string>
+    <string name="cat_starred">Destacados</string>
+    <string name="cat_personal">Personal</string>
+    <string name="cat_shopping">Compras</string>
+    <string name="cat_messages">Mensajes</string>
+    <string name="cat_notifications">Notificaciones</string>
+
+    <!-- Folders -->
+    <string name="folder_inbox">Recibidos</string>
+    <string name="folder_sent">Enviados</string>
+    <string name="folder_drafts">Borradores</string>
+    <string name="folder_trash">Papelera</string>
+    <string name="folder_junk">Spam</string>
+    <string name="folder_archive">Archivados</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Configuración</string>
+    <string name="sign_out">Cerrar sesión</string>
+    <string name="sign_out_confirm">¿Estás seguro de que quieres cerrar la sesión?</string>
+    <!-- Message Detail -->
+    <string name="back_button">Volver</string>
+    <string name="reply">Responder</string>
+    <string name="forward">Reenviar</string>
+    <string name="star">Destacar</string>
+    <string name="unstar">Quitar</string>
+    <string name="mark_unread">No leído</string>
+    <string name="no_content">Sin contenido</string>
+    <string name="previous_message">Mensaje anterior</string>
+    <string name="attachments_title">Adjuntos (%1$d)</string>
+    <string name="open_attachment">Abrir</string>
+    <string name="open_with">Abrir adjunto</string>
+    <string name="error_body">No se pudo descargar el cuerpo</string>
+    <string name="to_header">Para: %1$s</string>
+    <string name="cc_header">Cc: %1$s</string>
+    <string name="show_details">Ver detalles</string>
+    <string name="hide_details">Ocultar detalles</string>
+</resources>
