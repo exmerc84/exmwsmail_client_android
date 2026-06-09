@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.exmwsmail"
+    namespace = "com.exmworkspace.exmwsmail"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -13,7 +13,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.exmwsmail"
+        applicationId = "com.exmworkspace.exmwsmail"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -37,6 +37,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {

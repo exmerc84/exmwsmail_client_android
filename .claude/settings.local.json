@@ -104,7 +104,8 @@
       "Bash(xargs wc -l)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git -c user.name='checkpoint' -c user.email='checkpoint@local' commit -q -m \"Checkpoint before package rename\")"
+      "Bash(git -c user.name='checkpoint' -c user.email='checkpoint@local' commit -q -m \"Checkpoint before package rename\")",
+      "Bash(git -c user.name='checkpoint' -c user.email='checkpoint@local' commit -q -m \"Rename package to com.exmworkspace.exmwsmail + AppLog logging facade\")"
     ]
   }
 }
