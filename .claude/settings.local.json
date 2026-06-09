@@ -105,7 +105,14 @@
       "Bash(git init *)",
       "Bash(git add *)",
       "Bash(git -c user.name='checkpoint' -c user.email='checkpoint@local' commit -q -m \"Checkpoint before package rename\")",
-      "Bash(git -c user.name='checkpoint' -c user.email='checkpoint@local' commit -q -m \"Rename package to com.exmworkspace.exmwsmail + AppLog logging facade\")"
+      "Bash(git -c user.name='checkpoint' -c user.email='checkpoint@local' commit -q -m \"Rename package to com.exmworkspace.exmwsmail + AppLog logging facade\")",
+      "PowerShell(.\\\\gradlew.bat :app:compileDebugKotlin --console=plain 2>&1 | Select-Object -Last 40)",
+      "Bash(grep -rn 'FolderKind\\\\.\\\\\\(INBOX\\\\|SENT\\\\|TRASH\\\\|JUNK\\\\|DRAFTS\\\\|ARCHIVE\\\\\\)\\\\|fun.*Kind\\\\|attributes' __TRACKED_VAR__/data/mail/ImapGateway.kt)",
+      "Bash(sed -n 305,345p __TRACKED_VAR__/data/mail/ImapGateway.kt)",
+      "Bash(sed -n 223,240p __TRACKED_VAR__/ui/compose/ComposeViewModel.kt)",
+      "Bash(grep -n inferKind __TRACKED_VAR__/data/mail/ImapGateway.kt)",
+      "Bash(grep -n parseFirstAddress __TRACKED_VAR__/ui/compose/ComposeViewModel.kt)",
+      "Bash(grep -n addPrefixIfMissing __TRACKED_VAR__/ui/compose/ComposeViewModel.kt)"
     ]
   }
 }

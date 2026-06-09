@@ -89,7 +89,7 @@ class ImapGateway(
             RemoteFolder(
                 fullName = imap.fullName,
                 name = imap.name,
-                kind = inferKind(imap.fullName, attrs),
+                kind = inferFolderKind(imap.fullName, attrs),
                 holdsMessages = true,
             )
         }
@@ -311,16 +311,6 @@ class ImapGateway(
             flagged = msg.flags.contains(Flags.Flag.FLAGGED),
             answered = msg.flags.contains(Flags.Flag.ANSWERED),
         )
-
-    private fun inferKind(fullName: String, lowerAttrs: List<String>): FolderKind = when {
-        fullName.equals("INBOX", ignoreCase = true) -> FolderKind.INBOX
-        "\\sent" in lowerAttrs -> FolderKind.SENT
-        "\\drafts" in lowerAttrs -> FolderKind.DRAFTS
-        "\\trash" in lowerAttrs -> FolderKind.TRASH
-        "\\junk" in lowerAttrs -> FolderKind.JUNK
-        "\\archive" in lowerAttrs -> FolderKind.ARCHIVE
-        else -> FolderKind.OTHER
-    }
 
     private fun friendlyFrom(addr: Address?): String {
         if (addr == null) return ""

@@ -220,21 +220,6 @@ class ComposeViewModel(
             )
             .replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "")
 
-    private fun addPrefixIfMissing(subject: String, prefix: String): String {
-        val trimmed = subject.trim()
-        return if (trimmed.startsWith(prefix, ignoreCase = true)) trimmed
-        else "$prefix $trimmed"
-    }
-
-    private fun parseFirstAddress(raw: String): String? {
-        if (raw.isBlank()) return null
-        // "Name <email@x>" → email@x. Otherwise return raw trimmed.
-        val lt = raw.indexOf('<')
-        val gt = raw.indexOf('>')
-        return if (lt in 0 until gt) raw.substring(lt + 1, gt).trim()
-        else raw.trim().split(',', ';').firstOrNull()?.trim()
-    }
-
     private fun quoteLines(text: String): String =
         if (text.isEmpty()) "" else text.lines().joinToString("\n") { "> $it" }
 
