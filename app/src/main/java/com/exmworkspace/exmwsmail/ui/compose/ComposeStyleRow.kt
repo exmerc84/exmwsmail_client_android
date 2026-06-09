@@ -121,133 +121,62 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.ui.components.ExmField
 import kotlinx.coroutines.launch
 
-// Rich-text formatting panel (styles, font, size, color, list/align).
-// Extracted from ComposeScreen.
+// Bold/italic/underline/strike segmented control. Extracted from ComposeFormatPanel.
 
 @Composable
-internal fun FormatPanel(
-    viewModel: ComposeViewModel,
-    onDismiss: () -> Unit,
+internal fun StyleSegmentedRow(
+    isActive: (StyleType) -> Boolean,
+    onToggle: (StyleType) -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
-    val currentFamily = viewModel.currentFamily()
-    val currentColor = viewModel.currentColor()
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-        shadowElevation = 6.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.format_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                CircleIconButton(
-                    onClick = onDismiss,
-                    enabled = true,
-                    background = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    iconTint = MaterialTheme.colorScheme.onSurface,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.close),
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            // Row 1: B I U S
-            StyleSegmentedRow(
-                isActive = { viewModel.isStyleActiveOnSelection(it) },
-                onToggle = viewModel::toggleStyle,
-            )
-            // Row 2: Family pill | − | + | color
-            FontAndSizeRow(
-                family = currentFamily,
-                onPickFamily = viewModel::setFamily,
-                onDecreaseSize = { viewModel.changeSize(-2) },
-                onIncreaseSize = { viewModel.changeSize(+2) },
-                currentColor = currentColor,
-                onPickColor = viewModel::setColor,
-            )
-            // Row 3: bullet | numbered | left | center | right
-            ListAndAlignRow(
-                isBullet = viewModel.isListActive(ListKind.BULLET),
-                isNumbered = viewModel.isListActive(ListKind.NUMBERED),
-                onBullet = { viewModel.toggleList(ListKind.BULLET) },
-                onNumbered = { viewModel.toggleList(ListKind.NUMBERED) },
-                isLeft = viewModel.isAlignActive(TextAlignChoice.LEFT),
-                isCenter = viewModel.isAlignActive(TextAlignChoice.CENTER),
-                isRight = viewModel.isAlignActive(TextAlignChoice.RIGHT),
-                onLeft = { viewModel.setAlignment(TextAlignChoice.LEFT) },
-                onCenter = { viewModel.setAlignment(TextAlignChoice.CENTER) },
-                onRight = { viewModel.setAlignment(TextAlignChoice.RIGHT) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun ListAndAlignRow(
-    isBullet: Boolean,
-    isNumbered: Boolean,
-    onBullet: () -> Unit,
-    onNumbered: () -> Unit,
-    isLeft: Boolean,
-    isCenter: Boolean,
-    isRight: Boolean,
-    onLeft: () -> Unit,
-    onCenter: () -> Unit,
-    onRight: () -> Unit,
-) {
+    val items = listOf(
+        Triple(Icons.Default.FormatBold, R.string.style_bold, StyleType.BOLD),
+        Triple(Icons.Default.FormatItalic, R.string.style_italic, StyleType.ITALIC),
+        Triple(Icons.Default.FormatUnderlined, R.string.style_underline, StyleType.UNDERLINE),
+        Triple(Icons.Default.StrikethroughS, R.string.style_strike, StyleType.STRIKE),
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        StyleSegment(
-            icon = Icons.AutoMirrored.Filled.FormatListBulleted,
-            labelResId = R.string.list_bullet,
-            active = isBullet,
-            onClick = onBullet,
-            modifier = Modifier.weight(1f),
-        )
-        StyleSegment(
-            icon = Icons.Default.FormatListNumbered,
-            labelResId = R.string.list_numbered,
-            active = isNumbered,
-            onClick = onNumbered,
-            modifier = Modifier.weight(1f),
-        )
-        StyleSegment(
-            icon = Icons.Default.FormatAlignLeft,
-            labelResId = R.string.align_left,
-            active = isLeft,
-            onClick = onLeft,
-            modifier = Modifier.weight(1f),
-        )
-        StyleSegment(
-            icon = Icons.Default.FormatAlignCenter,
-            labelResId = R.string.align_center,
-            active = isCenter,
-            onClick = onCenter,
-            modifier = Modifier.weight(1f),
-        )
-        StyleSegment(
-            icon = Icons.Default.FormatAlignRight,
-            labelResId = R.string.align_right,
-            active = isRight,
-            onClick = onRight,
-            modifier = Modifier.weight(1f),
-        )
+        items.forEach { (icon, labelResId, type) ->
+            StyleSegment(
+                icon = icon,
+                labelResId = labelResId,
+                active = isActive(type),
+                onClick = { onToggle(type) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun StyleSegment(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    labelResId: Int,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = if (active) MaterialTheme.colorScheme.surfaceContainerHighest
+        else MaterialTheme.colorScheme.surface,
+        tonalElevation = if (active) 0.dp else 1.dp,
+        shadowElevation = if (active) 0.dp else 1.dp,
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = stringResource(labelResId),
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 

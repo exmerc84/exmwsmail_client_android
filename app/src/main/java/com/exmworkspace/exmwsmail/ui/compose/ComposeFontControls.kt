@@ -121,133 +121,187 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.ui.components.ExmField
 import kotlinx.coroutines.launch
 
-// Rich-text formatting panel (styles, font, size, color, list/align).
-// Extracted from ComposeScreen.
+// Font family, size, and text color controls. Extracted from ComposeFormatPanel.
 
 @Composable
-internal fun FormatPanel(
-    viewModel: ComposeViewModel,
-    onDismiss: () -> Unit,
-) {
-    val state by viewModel.state.collectAsState()
-    val currentFamily = viewModel.currentFamily()
-    val currentColor = viewModel.currentColor()
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-        shadowElevation = 6.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.format_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                CircleIconButton(
-                    onClick = onDismiss,
-                    enabled = true,
-                    background = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    iconTint = MaterialTheme.colorScheme.onSurface,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.close),
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            // Row 1: B I U S
-            StyleSegmentedRow(
-                isActive = { viewModel.isStyleActiveOnSelection(it) },
-                onToggle = viewModel::toggleStyle,
-            )
-            // Row 2: Family pill | − | + | color
-            FontAndSizeRow(
-                family = currentFamily,
-                onPickFamily = viewModel::setFamily,
-                onDecreaseSize = { viewModel.changeSize(-2) },
-                onIncreaseSize = { viewModel.changeSize(+2) },
-                currentColor = currentColor,
-                onPickColor = viewModel::setColor,
-            )
-            // Row 3: bullet | numbered | left | center | right
-            ListAndAlignRow(
-                isBullet = viewModel.isListActive(ListKind.BULLET),
-                isNumbered = viewModel.isListActive(ListKind.NUMBERED),
-                onBullet = { viewModel.toggleList(ListKind.BULLET) },
-                onNumbered = { viewModel.toggleList(ListKind.NUMBERED) },
-                isLeft = viewModel.isAlignActive(TextAlignChoice.LEFT),
-                isCenter = viewModel.isAlignActive(TextAlignChoice.CENTER),
-                isRight = viewModel.isAlignActive(TextAlignChoice.RIGHT),
-                onLeft = { viewModel.setAlignment(TextAlignChoice.LEFT) },
-                onCenter = { viewModel.setAlignment(TextAlignChoice.CENTER) },
-                onRight = { viewModel.setAlignment(TextAlignChoice.RIGHT) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun ListAndAlignRow(
-    isBullet: Boolean,
-    isNumbered: Boolean,
-    onBullet: () -> Unit,
-    onNumbered: () -> Unit,
-    isLeft: Boolean,
-    isCenter: Boolean,
-    isRight: Boolean,
-    onLeft: () -> Unit,
-    onCenter: () -> Unit,
-    onRight: () -> Unit,
+internal fun FontAndSizeRow(
+    family: FontFamilyChoice,
+    onPickFamily: (FontFamilyChoice) -> Unit,
+    onDecreaseSize: () -> Unit,
+    onIncreaseSize: () -> Unit,
+    currentColor: Long?,
+    onPickColor: (Long) -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FontFamilyPill(
+            current = family,
+            onPick = onPickFamily,
+            modifier = Modifier
+                .weight(1.4f)
+                .fillMaxHeightOf(46),
+        )
+        SizeSegmentedPair(
+            onDecrease = onDecreaseSize,
+            onIncrease = onIncreaseSize,
+            modifier = Modifier
+                .weight(1.2f)
+                .fillMaxHeightOf(46),
+        )
+        ColorPickerButton(
+            current = currentColor,
+            onPick = onPickColor,
+            modifier = Modifier
+                .size(46.dp),
+        )
+    }
+}
+
+private fun Modifier.fillMaxHeightOf(dpValue: Int): Modifier = this.height(dpValue.dp)
+
+@Composable
+private fun FontFamilyPill(
+    current: FontFamilyChoice,
+    onPick: (FontFamilyChoice) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Surface(
+        onClick = { expanded = true },
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.font_family, current.displayName),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            FontFamilyChoice.entries.forEach { choice ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = choice.displayName,
+                            fontFamily = when (choice) {
+                                FontFamilyChoice.SERIF -> FontFamily.Serif
+                                FontFamilyChoice.MONO -> FontFamily.Monospace
+                                FontFamilyChoice.DEFAULT -> FontFamily.SansSerif
+                            },
+                        )
+                    },
+                    onClick = {
+                        onPick(choice)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SizeSegmentedPair(
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         StyleSegment(
-            icon = Icons.AutoMirrored.Filled.FormatListBulleted,
-            labelResId = R.string.list_bullet,
-            active = isBullet,
-            onClick = onBullet,
+            icon = Icons.Default.Remove,
+            labelResId = R.string.font_size_decrease,
+            active = false,
+            onClick = onDecrease,
             modifier = Modifier.weight(1f),
         )
         StyleSegment(
-            icon = Icons.Default.FormatListNumbered,
-            labelResId = R.string.list_numbered,
-            active = isNumbered,
-            onClick = onNumbered,
+            icon = Icons.Default.Add,
+            labelResId = R.string.font_size_increase,
+            active = false,
+            onClick = onIncrease,
             modifier = Modifier.weight(1f),
         )
-        StyleSegment(
-            icon = Icons.Default.FormatAlignLeft,
-            labelResId = R.string.align_left,
-            active = isLeft,
-            onClick = onLeft,
-            modifier = Modifier.weight(1f),
-        )
-        StyleSegment(
-            icon = Icons.Default.FormatAlignCenter,
-            labelResId = R.string.align_center,
-            active = isCenter,
-            onClick = onCenter,
-            modifier = Modifier.weight(1f),
-        )
-        StyleSegment(
-            icon = Icons.Default.FormatAlignRight,
-            labelResId = R.string.align_right,
-            active = isRight,
-            onClick = onRight,
-            modifier = Modifier.weight(1f),
-        )
+    }
+}
+
+@Composable
+internal fun ColorPickerButton(
+    current: Long?,
+    onPick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val display = current ?: ColorPalette.first()
+    Surface(
+        onClick = { expanded = true },
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp,
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .background(Color(display), shape = CircleShape),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ColorPalette.forEach { argb ->
+                    Surface(
+                        onClick = {
+                            onPick(argb)
+                            expanded = false
+                        },
+                        modifier = Modifier.size(28.dp),
+                        shape = CircleShape,
+                        color = Color(argb),
+                        border = if (argb == current)
+                            androidx.compose.foundation.BorderStroke(
+                                2.dp,
+                                MaterialTheme.colorScheme.onSurface,
+                            ) else null,
+                    ) {}
+                }
+            }
+        }
     }
 }
 
