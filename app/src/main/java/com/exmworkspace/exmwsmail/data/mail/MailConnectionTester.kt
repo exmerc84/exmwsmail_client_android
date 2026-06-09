@@ -32,7 +32,7 @@ class MailConnectionTester {
     private fun testImap(credentials: Credentials) {
         val store = MailSessions.imapSession().getStore("imaps")
         try {
-            store.connect(MailConfig.HOST, MailConfig.IMAP_PORT, credentials.email, credentials.password)
+            store.connect(MailConfig.IMAP_HOST, MailConfig.IMAP_PORT, credentials.email, credentials.password)
         } finally {
             runCatching { store.close() }
         }
@@ -41,7 +41,7 @@ class MailConnectionTester {
     private fun testSmtp(credentials: Credentials) {
         val transport = MailSessions.smtpSession().getTransport("smtps")
         try {
-            transport.connect(MailConfig.HOST, MailConfig.SMTP_PORT, credentials.email, credentials.password)
+            transport.connect(MailConfig.SMTP_HOST, MailConfig.SMTP_PORT, credentials.email, credentials.password)
         } finally {
             runCatching { transport.close() }
         }

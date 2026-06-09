@@ -8,7 +8,7 @@ object MailSessions {
     fun imapSession(): Session {
         val props = Properties().apply {
             put("mail.store.protocol", "imaps")
-            put("mail.imaps.host", MailConfig.HOST)
+            put("mail.imaps.host", MailConfig.IMAP_HOST)
             put("mail.imaps.port", MailConfig.IMAP_PORT.toString())
             put("mail.imaps.ssl.enable", "true")
             put("mail.imaps.ssl.checkserveridentity", "true")
@@ -25,7 +25,7 @@ object MailSessions {
     fun smtpSession(): Session {
         val props = Properties().apply {
             put("mail.transport.protocol", "smtps")
-            put("mail.smtps.host", MailConfig.HOST)
+            put("mail.smtps.host", MailConfig.SMTP_HOST)
             put("mail.smtps.port", MailConfig.SMTP_PORT.toString())
             put("mail.smtps.auth", "true")
             put("mail.smtps.ssl.enable", "true")

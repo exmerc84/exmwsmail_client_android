@@ -102,7 +102,7 @@ class MailIdleService : Service() {
                 Log.d(TAG, "connecting to IMAP…")
                 val session = MailSessions.imapSession()
                 val store = (session.getStore("imaps") as IMAPStore).also {
-                    it.connect(MailConfig.HOST, MailConfig.IMAP_PORT, creds.email, creds.password)
+                    it.connect(MailConfig.IMAP_HOST, MailConfig.IMAP_PORT, creds.email, creds.password)
                 }
                 Log.d(TAG, "IMAP connected, opening INBOX")
                 try {

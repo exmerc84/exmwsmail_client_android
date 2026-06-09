@@ -285,7 +285,7 @@ class ImapGateway(
         runCatching { current?.close() }
         val creds = credentialStore.load() ?: error("Sin credenciales almacenadas")
         val s = MailSessions.imapSession().getStore("imaps") as IMAPStore
-        s.connect(MailConfig.HOST, MailConfig.IMAP_PORT, creds.email, creds.password)
+        s.connect(MailConfig.IMAP_HOST, MailConfig.IMAP_PORT, creds.email, creds.password)
         store = s
         return s
     }

@@ -110,7 +110,7 @@ class SmtpGateway(
         }
         val transport = session.getTransport("smtps")
         try {
-            transport.connect(MailConfig.HOST, MailConfig.SMTP_PORT, creds.email, creds.password)
+            transport.connect(MailConfig.SMTP_HOST, MailConfig.SMTP_PORT, creds.email, creds.password)
             transport.sendMessage(mime, mime.allRecipients)
         } finally {
             runCatching { transport.close() }
@@ -122,7 +122,7 @@ class SmtpGateway(
         val props = Properties().apply {
             put("mail.transport.protocol", "smtps")
             put("mail.transport.protocol.rfc822", "smtps")
-            put("mail.smtps.host", MailConfig.HOST)
+            put("mail.smtps.host", MailConfig.SMTP_HOST)
             put("mail.smtps.port", MailConfig.SMTP_PORT.toString())
             put("mail.smtps.auth", "true")
             put("mail.smtps.ssl.enable", "true")
