@@ -232,14 +232,33 @@ fun MailScreen(
                 windowInsets = WindowInsets(0),
             ) {
                 Column(modifier = Modifier.fillMaxHeight()) {
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.folders_title),
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
+                    // Title row doubles as the "new folder" home: creating a folder is rare,
+                    // and as a full card it cost the fixed footer a whole row on every phone.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.folders_title),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        IconButton(onClick = { showCreateFolder = true }) {
+                            Icon(
+                                imageVector = Icons.Default.CreateNewFolder,
+                                contentDescription = stringResource(R.string.new_folder),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    // Everything except the account footer scrolls: on a small phone the
+                    // old fixed block (five stacked cards) covered most of the folder list.
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -254,51 +273,43 @@ fun MailScreen(
                             },
                             onManage = { folder -> manageFolder = folder },
                         )
-                        // Scrolls with the list, so the last card can clear the viewport edge
-                        // instead of ending flush against the fixed block below — its shadow
-                        // was being clipped there and read as the two overlapping.
-                        Spacer(Modifier.height(12.dp))
+                        DrawerActionsCard(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            actions = listOf(
+                                DrawerAction(
+                                    icon = Icons.Default.NotificationsActive,
+                                    label = stringResource(R.string.followups),
+                                    badge = followupCount,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        onOpenFollowups()
+                                    },
+                                ),
+                                DrawerAction(
+                                    icon = Icons.Default.Settings,
+                                    label = stringResource(R.string.settings),
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        onOpenSettings()
+                                    },
+                                ),
+                            ),
+                        )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Column(
+                    // The one thing that stays pinned: who is signed in, with storage as a
+                    // thin line inside the same card instead of its own block.
+                    AccountFooterCard(
                         modifier = Modifier.padding(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        DrawerActionCard(
-                            icon = Icons.Default.CreateNewFolder,
-                            label = stringResource(R.string.new_folder),
-                            onClick = { showCreateFolder = true },
-                        )
-                        UserCard(
-                            // Standing in an auxiliary mailbox, the card names *it* — the
-                            // display name belongs to the login identity, not to the aux.
-                            displayName = if (activeAccount == null) displayName else "",
-                            email = userEmail,
-                            showSwitcher = true,
-                            onClick = {
-                                viewModel.refreshAccounts()
-                                showAccounts = true
-                            },
-                        )
-                        quota?.let { QuotaBar(used = it.used, total = it.total) }
-                        DrawerActionCard(
-                            icon = Icons.Default.NotificationsActive,
-                            label = stringResource(R.string.followups),
-                            badge = followupCount,
-                            onClick = {
-                                scope.launch { drawerState.close() }
-                                onOpenFollowups()
-                            },
-                        )
-                        DrawerActionCard(
-                            icon = Icons.Default.Settings,
-                            label = stringResource(R.string.settings),
-                            onClick = {
-                                scope.launch { drawerState.close() }
-                                onOpenSettings()
-                            },
-                        )
-                    }
+                        // Standing in an auxiliary mailbox, the card names *it* — the
+                        // display name belongs to the login identity, not to the aux.
+                        displayName = if (activeAccount == null) displayName else "",
+                        email = userEmail,
+                        quota = quota,
+                        onClick = {
+                            viewModel.refreshAccounts()
+                            showAccounts = true
+                        },
+                    )
                     Spacer(Modifier.height(12.dp))
                 }
             }

@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -106,6 +105,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.data.local.entity.FolderEntity
+import com.exmworkspace.exmwsmail.data.remote.dto.QuotaDto
+import com.exmworkspace.exmwsmail.ui.components.SenderAvatar
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
 import com.exmworkspace.exmwsmail.data.mail.sharedOwnerLabel
 import com.exmworkspace.exmwsmail.data.mail.splitDrawerFolders
@@ -281,55 +282,170 @@ private fun UnreadBadge(count: Int) {
     }
 }
 
+/** One entry of the drawer's grouped actions card. */
+internal data class DrawerAction(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val label: String,
+    /** Shown only when positive — a "0" badge announces nothing worth announcing. */
+    val badge: Int = 0,
+    val onClick: () -> Unit,
+)
+
 /**
- * Mailbox storage (§4.15), under the account it belongs to. Hidden when the backend does not
- * report a quota — showing "0 B de 0 B" would read as an empty mailbox rather than as no data.
+ * Reminders / settings as one grouped card in the scrolling area, in the same visual grammar
+ * as the folder groups. They used to be individual cards pinned under the list, and on small
+ * phones that fixed block covered most of the folders.
  */
 @Composable
-internal fun QuotaBar(used: Long, total: Long) {
-    if (total <= 0L) return
-    val fraction = (used.toFloat() / total.toFloat()).coerceIn(0f, 1f)
-    val tint = when {
-        fraction >= 0.9f -> MaterialTheme.colorScheme.error
-        fraction >= 0.75f -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 6.dp, end = 6.dp, top = 10.dp),
+internal fun DrawerActionsCard(
+    actions: List<DrawerAction>,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.storage),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(
-                    R.string.storage_usage,
-                    formatBytes(used),
-                    formatBytes(total),
-                ),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Column {
+            actions.forEachIndexed { index, action ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 50.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = action.onClick)
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = action.icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        text = action.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (action.badge > 0) {
+                        UnreadBadge(count = action.badge)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
-        Spacer(Modifier.height(6.dp))
-        LinearProgressIndicator(
-            progress = { fraction },
+    }
+}
+
+/**
+ * The drawer's only pinned element: who is signed in, doubling as the account switcher
+ * (§4.23), with storage (§4.15) folded in as a thin line instead of its own block. The
+ * quota line hides when the backend reports none — "0 B de 0 B" would read as an empty
+ * mailbox rather than as no data.
+ */
+@Composable
+internal fun AccountFooterCard(
+    displayName: String,
+    email: String?,
+    quota: QuotaDto?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(6.dp)
-                .clip(CircleShape),
-            color = tint,
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            drawStopIndicator = {},
-        )
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SenderAvatar(
+                    name = displayName.ifBlank { email },
+                    address = email,
+                    size = 34.dp,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = displayName.ifBlank { email ?: "—" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (displayName.isNotBlank() && !email.isNullOrBlank()) {
+                        Text(
+                            text = email,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.UnfoldMore,
+                    contentDescription = stringResource(R.string.accounts_title),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (quota != null && quota.total > 0L) {
+                val fraction = (quota.used.toFloat() / quota.total.toFloat()).coerceIn(0f, 1f)
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(CircleShape),
+                    color = when {
+                        fraction >= 0.9f -> MaterialTheme.colorScheme.error
+                        fraction >= 0.75f -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                    drawStopIndicator = {},
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        R.string.storage_usage,
+                        formatBytes(quota.used),
+                        formatBytes(quota.total),
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                )
+            }
+        }
     }
 }
 
@@ -345,137 +461,6 @@ internal fun formatBytes(bytes: Long): String {
     }
     return if (value >= 100) "${value.roundToInt()} ${units[unit]}"
     else String.format(Locale.US, "%.1f %s", value, units[unit])
-}
-
-@Composable
-internal fun UserCard(
-    displayName: String,
-    email: String?,
-    /** Non-null turns the card into the account switcher entry (§4.23). */
-    onClick: (() -> Unit)? = null,
-    /** More than one mailbox — show the affordance that there is something to switch. */
-    showSwitcher: Boolean = false,
-) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-        ),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                val primary = displayName.ifBlank { email ?: "—" }
-                Text(
-                    text = primary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (displayName.isNotBlank() && !email.isNullOrBlank()) {
-                    Text(
-                        text = email,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (showSwitcher) {
-                Icon(
-                    imageVector = Icons.Default.UnfoldMore,
-                    contentDescription = stringResource(R.string.accounts_title),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun DrawerActionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
-    /** Shown only when positive — a "0" badge announces nothing worth announcing. */
-    badge: Int = 0,
-) {
-    ElevatedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Same container treatment as the folder cards above, neutral fill: these are
-            // actions, not locations, so they share the shape but not the colour coding.
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(34.dp),
-            ) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (badge > 0) {
-                UnreadBadge(count = badge)
-                Spacer(Modifier.width(6.dp))
-            }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-    }
 }
 
 // Frosted-glass strip (iOS-style) at the bottom: Haze blurs whatever the message list is
