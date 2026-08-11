@@ -195,9 +195,14 @@ class MailViewModel(
      * previous account's list until Room emits the new one, so waiting for "any non-empty
      * list" hands back the old folders. On a switch that selected the previous account's
      * inbox and the screen snapped straight back to the mailbox the user had just left.
+     *
+     * Both waits have to suspend. Reading `accountId.value` outright looked equivalent and
+     * was not: on a cold start this runs in its own coroutine, races [bootstrap] and finds
+     * null, so it returned without ever selecting anything — the app opened to an empty list
+     * until the user picked a folder by hand.
      */
     private suspend fun selectInboxWhenReady() {
-        val target = accountId.value ?: return
+        val target = accountId.filterNotNull().first()
         val list = folders.first { it.isNotEmpty() && it.first().accountId == target }
         if (selectedFolderId.value != null) return
         val inbox = list.firstOrNull { it.kind == FolderKind.INBOX } ?: list.firstOrNull()

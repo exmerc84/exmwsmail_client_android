@@ -139,17 +139,33 @@ internal fun BottomBarBackdrop(
             .wrapContentHeight()
             .shadow(elevation = 10.dp, shape = shadowShape, clip = false)
             .clip(glassShape)
-            .hazeEffect(state = hazeState, style = glassStyle)
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        event.changes.forEach { it.consume() }
+            .hazeEffect(state = hazeState, style = glassStyle),
+    ) {
+        // Swallows taps that land on the bar's own background so they never reach the list
+        // scrolling behind the glass.
+        //
+        // A sibling *underneath* the content, not a wrapper around it. As a wrapper this
+        // consumed the bar's own children too: `clickable` decides a tap between the down and
+        // the up, and an ancestor consuming those changes in the same pass made it abandon
+        // the gesture. On the emulator's instantaneous synthetic taps it usually survived; on
+        // a real phone, where a finger lingers and drifts a pixel, the module and compose
+        // buttons took several presses to fire.
+        //
+        // Below the content in z-order, the buttons get the touch first and this never sees
+        // it; only presses on empty bar area fall through to here.
+        Box(
+            Modifier
+                .matchParentSize()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        while (true) {
+                            awaitPointerEvent().changes.forEach { it.consume() }
+                        }
                     }
                 }
-            },
-        content = content,
-    )
+        )
+        content()
+    }
 }
 
 internal class TopRoundedExtendedShape(
