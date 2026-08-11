@@ -185,14 +185,23 @@ class MailViewModel(
         refreshFollowupCount()
         refreshAccounts()
         // Auto-select INBOX once folders are available, but don't override user selection.
-        viewModelScope.launch {
-            folders.filter { it.isNotEmpty() }.first().also { list ->
-                if (selectedFolderId.value == null) {
-                    val inbox = list.firstOrNull { it.kind == FolderKind.INBOX } ?: list.firstOrNull()
-                    inbox?.let { selectFolder(it.id) }
-                }
-            }
-        }
+        viewModelScope.launch { selectInboxWhenReady() }
+    }
+
+    /**
+     * Waits for the folder list *of the current account* and opens its inbox.
+     *
+     * The account check is the whole point: `folders` is a StateFlow that keeps serving the
+     * previous account's list until Room emits the new one, so waiting for "any non-empty
+     * list" hands back the old folders. On a switch that selected the previous account's
+     * inbox and the screen snapped straight back to the mailbox the user had just left.
+     */
+    private suspend fun selectInboxWhenReady() {
+        val target = accountId.value ?: return
+        val list = folders.first { it.isNotEmpty() && it.first().accountId == target }
+        if (selectedFolderId.value != null) return
+        val inbox = list.firstOrNull { it.kind == FolderKind.INBOX } ?: list.firstOrNull()
+        inbox?.let { selectFolder(it.id) }
     }
 
     private suspend fun bootstrap() {
@@ -248,12 +257,7 @@ class MailViewModel(
         _error.value = null
         viewModelScope.launch {
             bootstrap()
-            folders.filter { it.isNotEmpty() }.first().also { list ->
-                if (selectedFolderId.value == null) {
-                    val inbox = list.firstOrNull { it.kind == FolderKind.INBOX } ?: list.firstOrNull()
-                    inbox?.let { selectFolder(it.id) }
-                }
-            }
+            selectInboxWhenReady()
         }
     }
 

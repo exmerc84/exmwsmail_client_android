@@ -3,6 +3,7 @@ package com.exmworkspace.exmwsmail.data.remote
 import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftDto
 import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.AttachmentBrowseDto
+import com.exmworkspace.exmwsmail.data.remote.dto.CalendarReplyRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareDto
 import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.FollowupCreateDto
@@ -301,6 +302,11 @@ interface MailApi {
         @Query("client_draft_id") clientDraftId: String,
         @Query("uid") uid: String? = null,
     ): Response<SimpleMessageDto>
+
+    // ---- Calendar RSVP (§4.22) ----
+
+    @POST("api/emails/calendar/reply")
+    suspend fun calendarReply(@Body body: CalendarReplyRequest): Response<SimpleMessageDto>
 
     // ---- Accounts (§4.23) ----
     // Read-only on purpose: mailboxes are provisioned server-side, so the section's

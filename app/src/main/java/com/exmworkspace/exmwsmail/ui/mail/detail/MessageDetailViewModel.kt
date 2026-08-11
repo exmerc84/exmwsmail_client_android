@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.exmworkspace.exmwsmail.data.local.entity.AttachmentEntity
 import com.exmworkspace.exmwsmail.data.local.entity.FolderEntity
+import com.exmworkspace.exmwsmail.data.mail.CalendarInvite
+import com.exmworkspace.exmwsmail.data.mail.InviteReply
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
 import com.exmworkspace.exmwsmail.data.repository.AuthRepository
 import com.exmworkspace.exmwsmail.data.repository.MailRepository
@@ -69,6 +71,40 @@ class MessageDetailViewModel(
     private val _currentFolder = MutableStateFlow<FolderEntity?>(null)
     val currentFolder: StateFlow<FolderEntity?> = _currentFolder.asStateFlow()
 
+    /** The meeting request in this message, once its `.ics` has been fetched (§4.22). */
+    private val _invite = MutableStateFlow<CalendarInvite?>(null)
+    val invite: StateFlow<CalendarInvite?> = _invite.asStateFlow()
+
+    /** The answer already sent this session, so the card can show what was chosen. */
+    private val _inviteReply = MutableStateFlow<InviteReply?>(null)
+    val inviteReply: StateFlow<InviteReply?> = _inviteReply.asStateFlow()
+
+    private val _sendingReply = MutableStateFlow(false)
+    val sendingReply: StateFlow<Boolean> = _sendingReply.asStateFlow()
+
+    fun answerInvite(status: InviteReply) {
+        val invite = _invite.value ?: return
+        if (_sendingReply.value) return
+        viewModelScope.launch {
+            _sendingReply.value = true
+            try {
+                mailRepository.replyToInvite(invite, status)
+                _inviteReply.value = status
+                _notice.value = replyNotice(status)
+            } catch (e: Exception) {
+                _error.update { authRepository.describeFailure(e) }
+            } finally {
+                _sendingReply.value = false
+            }
+        }
+    }
+
+    private fun replyNotice(status: InviteReply) = when (status) {
+        InviteReply.ACCEPTED -> "Invitación aceptada"
+        InviteReply.TENTATIVE -> "Respondiste “quizá”"
+        InviteReply.DECLINED -> "Invitación rechazada"
+    }
+
     /** Move targets for the actions sheet. */
     val folders: StateFlow<List<FolderEntity>> = accountId
         .filterNotNull()
@@ -95,6 +131,14 @@ class MessageDetailViewModel(
                 _error.update { authRepository.describeFailure(e) }
             } finally {
                 _loadingBody.value = false
+            }
+            // After the body: the attachment list only exists once the detail is cached, and
+            // a failure here must not cost the user the message itself.
+            val fresh = mailRepository.findMessage(messageId)
+            if (fresh != null) {
+                runCatching {
+                    mailRepository.calendarInviteFor(fresh, detail.value.attachments)
+                }.onSuccess { _invite.value = it }
             }
         }
     }

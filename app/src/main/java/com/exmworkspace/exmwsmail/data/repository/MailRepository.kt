@@ -11,12 +11,17 @@ import com.exmworkspace.exmwsmail.data.local.entity.AttachmentEntity
 import com.exmworkspace.exmwsmail.data.local.entity.FolderEntity
 import com.exmworkspace.exmwsmail.data.local.entity.MessageBodyEntity
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
+import com.exmworkspace.exmwsmail.data.mail.CalendarInvite
 import com.exmworkspace.exmwsmail.data.mail.FolderKind
+import com.exmworkspace.exmwsmail.data.mail.InviteReply
+import com.exmworkspace.exmwsmail.data.mail.isCalendarAttachment
+import com.exmworkspace.exmwsmail.data.mail.parseCalendarInvite
 import com.exmworkspace.exmwsmail.data.mail.stripImapFetchPreamble
 import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftOptionDto
 import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.AiMessageDto
 import com.exmworkspace.exmwsmail.data.remote.dto.AttachmentBrowseDto
+import com.exmworkspace.exmwsmail.data.remote.dto.CalendarReplyRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareDto
 import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.FollowupCreateDto
@@ -845,6 +850,45 @@ class MailRepository(
         api.unshareFolder(folder.fullName, grantee).requireSuccess()
     }
 
+    // ---- Calendar RSVP (§4.22) ----
+
+    /**
+     * Reads the meeting request out of a message's `.ics`, or null when there is none to
+     * answer. The parsing is the client's job (§4.22), so the file is fetched and handed to
+     * [parseCalendarInvite]; a 5 MB ceiling keeps a mislabelled attachment from being pulled
+     * into memory whole.
+     */
+    suspend fun calendarInviteFor(
+        message: MessageEntity,
+        attachments: List<AttachmentEntity>,
+    ): CalendarInvite? = withContext(Dispatchers.IO) {
+        val folder = folderDao.findById(message.folderId) ?: return@withContext null
+        val part = attachments.firstOrNull { isCalendarAttachment(it.mimeType, it.filename) }
+            ?.takeIf { it.sizeBytes in 1..MAX_ICS_BYTES }
+            ?: return@withContext null
+        runCatching {
+            val body = api.attachment(message.uid, part.partIndex, folder.fullName).requireBody()
+            parseCalendarInvite(body.string())
+        }.getOrNull()
+    }
+
+    /** Sends the iTIP reply; the backend mails it from the user's own mailbox (§4.22). */
+    suspend fun replyToInvite(invite: CalendarInvite, status: InviteReply) =
+        withContext(Dispatchers.IO) {
+            api.calendarReply(
+                CalendarReplyRequest(
+                    organizerEmail = invite.organizerEmail,
+                    organizerName = invite.organizerName,
+                    summary = invite.summary,
+                    icalUid = invite.icalUid,
+                    status = status.apiValue,
+                    startAt = invite.startAt,
+                    endAt = invite.endAt,
+                    sequence = invite.sequence,
+                )
+            ).requireSuccess()
+        }
+
     // ---- Accounts (§4.23) ----
 
     /**
@@ -940,6 +984,8 @@ class MailRepository(
     private companion object {
         const val TAG = "MailRepository"
         const val PAGE_SIZE = 30
+        /** A meeting request is a few KB; anything larger is not an .ics worth reading. */
+        const val MAX_ICS_BYTES = 5L * 1024 * 1024
         /** The largest page §4.2 allows. */
         const val CATEGORY_PAGE_SIZE = 100
         /** Ceiling on the paging loop — 1200 messages in one category, then it gives up loudly. */

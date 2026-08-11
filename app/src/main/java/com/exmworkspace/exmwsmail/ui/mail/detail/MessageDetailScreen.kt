@@ -100,6 +100,9 @@ fun MessageDetailScreen(
     val downloadingAttachment by viewModel.downloadingAttachment.collectAsState()
     val folders by viewModel.folders.collectAsState()
     val currentFolder by viewModel.currentFolder.collectAsState()
+    val invite by viewModel.invite.collectAsState()
+    val inviteReply by viewModel.inviteReply.collectAsState()
+    val sendingReply by viewModel.sendingReply.collectAsState()
     val context = LocalContext.current
     var showActions by remember { mutableStateOf(false) }
 
@@ -282,6 +285,17 @@ fun MessageDetailScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val message = detail.message
+            // Above the body: the mail is asking for a decision, so the decision leads.
+            invite?.let {
+                InviteCard(
+                    invite = it,
+                    answered = inviteReply,
+                    sending = sendingReply,
+                    onAnswer = viewModel::answerInvite,
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
             if (message != null) {
                 MessageCard(message = message) {
                     // The translation stands in for the body, so it renders through the very

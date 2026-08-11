@@ -6,6 +6,23 @@ import kotlinx.serialization.Serializable
 // §4.19 Followups and §4.21 AI. Every shape below was read off a live response rather than
 // inferred from the doc, which spells out the requests but not the replies.
 
+/**
+ * `POST /api/emails/calendar/reply` — the iTIP answer to a meeting request (§4.22). The
+ * REPLY goes out from the user's own mailbox, as iTIP requires, and lands in Sent.
+ */
+@Serializable
+data class CalendarReplyRequest(
+    @SerialName("organizer_email") val organizerEmail: String,
+    @SerialName("organizer_name") val organizerName: String? = null,
+    val summary: String,
+    @SerialName("ical_uid") val icalUid: String,
+    /** "accepted" | "tentative" | "declined". */
+    val status: String,
+    @SerialName("start_at") val startAt: String? = null,
+    @SerialName("end_at") val endAt: String? = null,
+    val sequence: Int = 0,
+)
+
 /** `GET /api/followups` wraps the list in an object and adds the badge count. */
 @Serializable
 data class FollowupListDto(
