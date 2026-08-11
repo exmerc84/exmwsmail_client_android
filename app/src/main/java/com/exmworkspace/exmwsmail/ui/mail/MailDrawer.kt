@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.FolderShared
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.MarkEmailRead
@@ -123,6 +124,7 @@ internal fun FolderListCard(
     selectedId: Long?,
     onSelect: (FolderEntity) -> Unit,
     onManage: (FolderEntity) -> Unit = {},
+    onCreateFolder: (() -> Unit)? = null,
 ) {
     if (folders.isEmpty()) return
     val sections = remember(folders) { splitDrawerFolders(folders) }
@@ -133,10 +135,10 @@ internal fun FolderListCard(
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         FolderGroupCard(sections.system, selectedId, onSelect, onManage)
-        if (sections.own.isNotEmpty()) {
-            FolderSectionHeader("Tus carpetas")
-            FolderGroupCard(sections.own, selectedId, onSelect, onManage)
-        }
+        // Always rendered, even with no custom folders yet: it carries the create action, and
+        // hiding it would leave a brand-new account with no way to make its first folder.
+        FolderSectionHeader("Tus carpetas", action = onCreateFolder)
+        FolderGroupCard(sections.own, selectedId, onSelect, onManage)
         if (sections.sharedWithMe.isNotEmpty()) {
             FolderSectionHeader("Compartidas conmigo")
             FolderGroupCard(sections.sharedWithMe, selectedId, onSelect, onManage)
@@ -185,15 +187,39 @@ private fun FolderGroupCard(
     }
 }
 
+/**
+ * Section label, optionally with the action that belongs to that section — creating a folder
+ * sits on "Tus carpetas" because that is the only section it can add to, not on the drawer
+ * title where it read as applying to the system folders too.
+ */
 @Composable
-private fun FolderSectionHeader(text: String) {
+private fun FolderSectionHeader(text: String, action: (() -> Unit)? = null) {
     // The grouped cards already separate the blocks, so the header needs no rule of its own.
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null) {
+            Icon(
+                imageVector = Icons.Default.CreateNewFolder,
+                contentDescription = stringResource(R.string.new_folder),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = action)
+                    .padding(6.dp)
+                    .size(20.dp),
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

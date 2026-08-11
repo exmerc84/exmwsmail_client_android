@@ -232,31 +232,14 @@ fun MailScreen(
                 windowInsets = WindowInsets(0),
             ) {
                 Column(modifier = Modifier.fillMaxHeight()) {
-                    Spacer(Modifier.height(10.dp))
-                    // Title row doubles as the "new folder" home: creating a folder is rare,
-                    // and as a full card it cost the fixed footer a whole row on every phone.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 20.dp, end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.folders_title),
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        IconButton(onClick = { showCreateFolder = true }) {
-                            Icon(
-                                imageVector = Icons.Default.CreateNewFolder,
-                                contentDescription = stringResource(R.string.new_folder),
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.folders_title),
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     // Everything except the account footer scrolls: on a small phone the
                     // old fixed block (five stacked cards) covered most of the folder list.
                     Column(
@@ -272,6 +255,7 @@ fun MailScreen(
                                 scope.launch { drawerState.close() }
                             },
                             onManage = { folder -> manageFolder = folder },
+                            onCreateFolder = { showCreateFolder = true },
                         )
                         DrawerActionsCard(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
