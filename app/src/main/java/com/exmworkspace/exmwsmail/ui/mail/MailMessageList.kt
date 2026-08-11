@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
@@ -126,7 +127,10 @@ internal fun MessageList(
     onToggleRead: (Long) -> Unit,
     onLongPress: (Long) -> Unit,
     canWrite: Boolean = true,
+    selectedIds: Set<Long> = emptySet(),
+    onToggleSelection: (Long) -> Unit = {},
 ) {
+    val selectionMode = selectedIds.isNotEmpty()
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -147,11 +151,17 @@ internal fun MessageList(
             }
             SwipeableMessageRow(
                 msg = msg,
-                onOpen = { onOpen(msg.id) },
+                // Once a selection exists, tapping extends it rather than opening a message:
+                // opening would throw away the set the user is still building.
+                onOpen = {
+                    if (selectionMode) onToggleSelection(msg.id) else onOpen(msg.id)
+                },
                 onDelete = { onDelete(msg.id) },
                 onToggleRead = { onToggleRead(msg.id) },
                 onLongPress = { onLongPress(msg.id) },
                 canWrite = canWrite,
+                selected = msg.id in selectedIds,
+                selectionMode = selectionMode,
                 // Rows glide to their new position when a refresh reorders or removes them
                 // (delete, pin, new mail) instead of teleporting.
                 modifier = Modifier.animateItem(),
@@ -196,6 +206,10 @@ internal fun SwipeableMessageRow(
     /** False in a read-only shared folder: the backend answers 403 to any write (§4.20). */
     canWrite: Boolean = true,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    /** True while any row is selected: swiping is off, because a swipe would act on one
+     *  row while the user is clearly working on a set. */
+    selectionMode: Boolean = false,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -230,8 +244,8 @@ internal fun SwipeableMessageRow(
         state = dismissState,
         // The overflow sheet already hides these actions here; letting the gesture through
         // would just earn a 403 and, for delete, animate the row away before it failed.
-        enableDismissFromStartToEnd = canWrite,
-        enableDismissFromEndToStart = canWrite,
+        enableDismissFromStartToEnd = canWrite && !selectionMode,
+        enableDismissFromEndToStart = canWrite && !selectionMode,
         backgroundContent = {
             val direction = dismissState.dismissDirection
             when (direction) {
@@ -301,7 +315,12 @@ internal fun SwipeableMessageRow(
             }
         },
     ) {
-        MessageRow(msg = msg, onClick = onOpen, onLongClick = onLongPress)
+        MessageRow(
+            msg = msg,
+            onClick = onOpen,
+            onLongClick = onLongPress,
+            selected = selected,
+        )
     }
 }
 
@@ -311,10 +330,15 @@ internal fun MessageRow(
     msg: MessageEntity,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
+    selected: Boolean = false,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
+            else MaterialTheme.colorScheme.surface,
+        ),
     ) {
     // The click handling lives on the inner Row, not on the card's own modifier: clipping
     // there to host combinedClickable also clipped the shadow the card draws, flattening it.
@@ -325,14 +349,35 @@ internal fun MessageRow(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        // The colour flag takes over the unread badge when set — same corner, no extra slot.
-        val flagColor = MailColor.from(msg.color)?.swatch
-        SenderAvatar(
-            name = msg.from,
-            address = msg.fromAddress,
-            modifier = Modifier.padding(top = 2.dp),
-            badge = flagColor ?: MaterialTheme.colorScheme.primary.takeIf { !msg.seen },
-        )
+        // The avatar doubles as the selection control, the way every mail client does it: in
+        // selection mode it becomes the checkmark, so the row gains no extra column and the
+        // tap target the user already aims at keeps working.
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        } else {
+            // The colour flag takes over the unread badge when set — same corner, no extra slot.
+            val flagColor = MailColor.from(msg.color)?.swatch
+            SenderAvatar(
+                name = msg.from,
+                address = msg.fromAddress,
+                modifier = Modifier.padding(top = 2.dp),
+                badge = flagColor ?: MaterialTheme.colorScheme.primary.takeIf { !msg.seen },
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

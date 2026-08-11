@@ -12,6 +12,7 @@ import com.exmworkspace.exmwsmail.data.repository.AuthRepository
 import com.exmworkspace.exmwsmail.data.repository.MailRepository
 import com.exmworkspace.exmwsmail.ui.appContainer
 import com.exmworkspace.exmwsmail.ui.describeFailure
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -67,6 +68,67 @@ class MailViewModel(
             }
         }
     }
+
+    // ---- Multi-select ----
+
+    /**
+     * Rows the user has picked out for a batch action. Empty means selection mode is off —
+     * there is no separate flag to keep in sync with it.
+     */
+    private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
+
+    fun toggleSelection(messageId: Long) {
+        _selectedIds.update { current ->
+            if (messageId in current) current - messageId else current + messageId
+        }
+    }
+
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
+    }
+
+    fun selectAllVisible() {
+        _selectedIds.value = messages.value.map { it.id }.toSet()
+    }
+
+    /**
+     * Runs [action] over every selected row, then clears the selection.
+     *
+     * Sequential, and each row is caught on its own: the API has no batch endpoint for these
+     * (§4.4 acts per uid), and one failure — a message already gone from the server, say —
+     * must not abandon the rest of the user's selection. The first error is surfaced once at
+     * the end rather than once per row.
+     */
+    private fun runOnSelection(action: suspend (Long) -> Unit) {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        clearSelection()
+        viewModelScope.launch {
+            var firstFailure: Exception? = null
+            for (id in ids) {
+                try {
+                    action(id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (firstFailure == null) firstFailure = e
+                }
+            }
+            accountId.value?.let { mailRepository.refreshFolderCounters(it) }
+            firstFailure?.let { e -> _error.update { authRepository.describeFailure(e) } }
+        }
+    }
+
+    /** A list row stands for a thread, so a batch delete takes whole threads (§4.4). */
+    fun deleteSelected() = runOnSelection { mailRepository.deleteThread(it) }
+
+    fun moveSelected(destination: FolderEntity) =
+        runOnSelection { mailRepository.moveThread(it, destination.fullName) }
+
+    fun markSelectedRead(seen: Boolean) = runOnSelection { mailRepository.markRead(it, seen) }
+
+    fun markSelectedSpam() = runOnSelection { mailRepository.markSpam(it) }
 
     private val _refreshing = MutableStateFlow(false)
     private val _loadingOlder = MutableStateFlow(false)

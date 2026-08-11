@@ -1,5 +1,6 @@
 package com.exmworkspace.exmwsmail.ui.mail
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -145,7 +146,12 @@ fun MailScreen(
     val followupCount by viewModel.followupCount.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
     val activeAccount by viewModel.activeAccount.collectAsState()
+    val selectedIds by viewModel.selectedIds.collectAsState()
     var showAccounts by remember { mutableStateOf(false) }
+    var showMoveSelected by remember { mutableStateOf(false) }
+
+    // Back leaves selection before it leaves the screen — the set is the thing on screen.
+    BackHandler(enabled = selectedIds.isNotEmpty()) { viewModel.clearSelection() }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -301,40 +307,57 @@ fun MailScreen(
     ) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = { Text(selectedFolder?.let { folderLabel(it) } ?: "EXM WS Mail") },
-                    navigationIcon = {
-                        Surface(
-                            onClick = { scope.launch { drawerState.open() } },
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .size(40.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 2.dp,
-                            shadowElevation = 4.dp,
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
+                if (selectedIds.isNotEmpty()) {
+                    SelectionTopBar(
+                        count = selectedIds.size,
+                        canWrite = selectedFolder?.canWrite ?: true,
+                        onClose = viewModel::clearSelection,
+                        onSelectAll = viewModel::selectAllVisible,
+                        onMarkRead = { viewModel.markSelectedRead(true) },
+                        onMarkUnread = { viewModel.markSelectedRead(false) },
+                        onMove = { showMoveSelected = true },
+                        onDelete = viewModel::deleteSelected,
+                        onMore = {
+                            actionsForMessage = messages.firstOrNull { it.id in selectedIds }
+                            viewModel.clearSelection()
+                        },
+                    )
+                } else {
+                    TopAppBar(
+                        title = { Text(selectedFolder?.let { folderLabel(it) } ?: "EXM WS Mail") },
+                        navigationIcon = {
+                            Surface(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .size(40.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 2.dp,
+                                shadowElevation = 4.dp,
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.ChevronLeft,
-                                    contentDescription = stringResource(R.string.folders_title),
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                )
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronLeft,
+                                        contentDescription = stringResource(R.string.folders_title),
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
                             }
-                        }
-                    },
-                    actions = {
-                        IconButton(
-                            onClick = viewModel::refresh,
-                            enabled = !refreshing,
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
-                        }
-                    },
-                )
+                        },
+                        actions = {
+                            IconButton(
+                                onClick = viewModel::refresh,
+                                enabled = !refreshing,
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
+                            }
+                        },
+                    )
+                }
             },
         ) { padding ->
             val hazeState = remember { HazeState() }
@@ -379,10 +402,14 @@ fun MailScreen(
                                     onOpen = openRow,
                                     onDelete = viewModel::deleteMessage,
                                     onToggleRead = viewModel::toggleRead,
-                                    onLongPress = { id ->
-                                        actionsForMessage = messages.firstOrNull { it.id == id }
-                                    },
+                                    // Long-press starts a selection instead of opening the
+                                    // single-message sheet: picking several rows is the more
+                                    // common intent, and the sheet's own actions stay one tap
+                                    // away on the message itself.
+                                    onLongPress = viewModel::toggleSelection,
                                     canWrite = selectedFolder?.canWrite ?: true,
+                                    selectedIds = selectedIds,
+                                    onToggleSelection = viewModel::toggleSelection,
                                 )
                             }
                         }
@@ -462,6 +489,19 @@ fun MailScreen(
             },
             onRevoke = { share -> viewModel.revokeShare(folder, share.grantee) },
             onDismiss = { shareFolder = null },
+        )
+    }
+
+    if (showMoveSelected) {
+        MoveSelectionSheet(
+            folders = sortedFolders,
+            currentFolder = selectedFolder,
+            count = selectedIds.size,
+            onMove = { target ->
+                viewModel.moveSelected(target)
+                showMoveSelected = false
+            },
+            onDismiss = { showMoveSelected = false },
         )
     }
 

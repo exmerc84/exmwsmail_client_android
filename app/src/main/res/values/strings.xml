@@ -49,6 +49,8 @@
     <string name="swipe_to_read">Marcar como leído</string>
     <string name="swipe_to_unread">Marcar como no leído</string>
     <string name="filters">Filtros</string>
+    <string name="select_all">Seleccionar todo</string>
+    <string name="move_selection_title">Mover %1$d correos a…</string>
     <string name="compose">Redactar</string>
 
     <!-- Compose -->
