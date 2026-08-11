@@ -35,9 +35,11 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -47,13 +49,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,6 +70,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.data.local.entity.AttachmentEntity
+import com.exmworkspace.exmwsmail.ui.ai.AiResultSheet
+import com.exmworkspace.exmwsmail.ui.ai.TranslateLanguage
+import com.exmworkspace.exmwsmail.ui.ai.TranslateLanguageSheet
+import com.exmworkspace.exmwsmail.ui.followups.RemindMeSheet
+import com.exmworkspace.exmwsmail.ui.mail.MessageActionsSheet
+import com.exmworkspace.exmwsmail.ui.mail.sortedForDrawer
+import com.exmworkspace.exmwsmail.ui.mailContainer
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -76,6 +89,7 @@ fun MessageDetailScreen(
     onBack: () -> Unit,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
+    onViewSource: (SourceMode) -> Unit = {},
     viewModel: MessageDetailViewModel = viewModel(factory = MessageDetailViewModel.factoryFor(messageId)),
 ) {
     val detail by viewModel.detail.collectAsState()
@@ -83,13 +97,130 @@ fun MessageDetailScreen(
     val error by viewModel.error.collectAsState()
     val deleted by viewModel.deleted.collectAsState()
     val busy by viewModel.busy.collectAsState()
+    val downloadingAttachment by viewModel.downloadingAttachment.collectAsState()
+    val folders by viewModel.folders.collectAsState()
+    val currentFolder by viewModel.currentFolder.collectAsState()
     val context = LocalContext.current
+    var showActions by remember { mutableStateOf(false) }
+
+    val savedToCloud = stringResource(R.string.saved_to_cloud)
+    val summaryTitle = stringResource(R.string.ai_summary_title)
+    val translateTitle = stringResource(R.string.ai_translate_title)
+    // Remembered so the banner can name the language the body is now in.
+    var translateLanguage by remember { mutableStateOf(TranslateLanguage.SPANISH) }
+    var showTranslatePicker by remember { mutableStateOf(false) }
+    val followupCreated = stringResource(R.string.followup_created)
+    var showRemindMe by remember { mutableStateOf(false) }
+    val aiResult by viewModel.aiResult.collectAsState()
+    val aiTitle by viewModel.aiTitle.collectAsState()
+    val translatedBody by viewModel.translatedBody.collectAsState()
+    val translating by viewModel.translating.collectAsState()
 
     androidx.compose.runtime.LaunchedEffect(deleted) {
         if (deleted) onBack()
     }
 
+    detail.message?.let { message ->
+        if (showActions) {
+            MessageActionsSheet(
+                message = message,
+                folders = remember(folders) { folders.sortedForDrawer() },
+                currentFolder = currentFolder,
+                onToggleRead = {
+                    // Reading it is what marked it; the only useful direction is back.
+                    viewModel.markUnread()
+                    showActions = false
+                    onBack()
+                },
+                onMarkThreadRead = {
+                    viewModel.markThreadRead()
+                    showActions = false
+                },
+                onTogglePin = {
+                    viewModel.toggleFlag()
+                    showActions = false
+                },
+                onMove = { target ->
+                    viewModel.move(target)
+                    showActions = false
+                },
+                onSpam = {
+                    viewModel.markSpam()
+                    showActions = false
+                },
+                onSetColor = { color ->
+                    viewModel.setColor(color)
+                    showActions = false
+                },
+                onDelete = {
+                    viewModel.deleteMessage()
+                    showActions = false
+                },
+                onDismiss = { showActions = false },
+                onRemindMe = {
+                    showActions = false
+                    showRemindMe = true
+                },
+                onSummarize = {
+                    showActions = false
+                    viewModel.summarize(summaryTitle)
+                },
+                onTranslate = {
+                    showActions = false
+                    showTranslatePicker = true
+                },
+                onViewSource = {
+                    showActions = false
+                    onViewSource(SourceMode.SOURCE)
+                },
+                onViewHeaders = {
+                    showActions = false
+                    onViewSource(SourceMode.HEADERS)
+                },
+            )
+        }
+    }
+
+    if (showTranslatePicker) {
+        TranslateLanguageSheet(
+            onPick = { language ->
+                showTranslatePicker = false
+                translateLanguage = language
+                viewModel.translateInline(language.apiValue)
+            },
+            onDismiss = { showTranslatePicker = false },
+        )
+    }
+
+    if (showRemindMe) {
+        RemindMeSheet(
+            onPick = { dueAt ->
+                showRemindMe = false
+                viewModel.remindMe(dueAt, followupCreated)
+            },
+            onDismiss = { showRemindMe = false },
+        )
+    }
+
+    aiResult?.let { result ->
+        AiResultSheet(
+            title = aiTitle,
+            result = result,
+            onDismiss = viewModel::dismissAi,
+        )
+    }
+
+    val notice by viewModel.notice.collectAsState()
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(notice) {
+        notice?.let {
+            snackbar.showSnackbar(it)
+            viewModel.dismissNotice()
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = { Text("") },
@@ -115,6 +246,14 @@ fun MessageDetailScreen(
                                 )
                             }
                         }
+                },
+                actions = {
+                    IconButton(onClick = { showActions = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.message_actions),
+                        )
+                    }
                 },
             )
         },
@@ -144,16 +283,26 @@ fun MessageDetailScreen(
             val message = detail.message
             if (message != null) {
                 MessageCard(message = message) {
+                    // The translation stands in for the body, so it renders through the very
+                    // same path — same layout, same inline images, same quote splitting.
+                    val shown = translatedBody ?: detail.body
+                    if (translatedBody != null || translating) {
+                        TranslatedBanner(
+                            languageLabel = stringResource(translateLanguage.labelRes),
+                            translating = translating,
+                            onShowOriginal = viewModel::showOriginal,
+                        )
+                    }
                     when {
-                        loadingBody && detail.body == null -> BodyLoading()
-                        error != null && detail.body == null -> BodyError(error!!)
-                        detail.body?.html != null -> {
-                            val segments = remember(detail.body!!.html) {
-                                splitConversations(detail.body!!.html!!)
+                        loadingBody && shown == null -> BodyLoading()
+                        error != null && shown == null -> BodyError(error!!)
+                        shown?.html != null -> {
+                            val segments = remember(shown.html) {
+                                splitConversations(shown.html!!)
                             }
                             BodySegments(segments)
                         }
-                        detail.body?.text != null -> BodyText(detail.body!!.text!!)
+                        shown?.text != null -> BodyText(shown.text!!)
                         else -> BodyEmpty(stringResource(R.string.no_content))
                     }
                 }
@@ -162,7 +311,13 @@ fun MessageDetailScreen(
             if (detail.attachments.isNotEmpty()) {
                 AttachmentsCard(
                     attachments = detail.attachments,
-                    onOpen = { att -> openAttachment(context, att) },
+                    downloadingId = downloadingAttachment,
+                    // Bytes are fetched on demand: the API ships attachment metadata with
+                    // the message and the file itself only when asked for.
+                    onOpen = { att ->
+                        viewModel.openAttachment(att) { ready -> openAttachment(context, ready) }
+                    },
+                    onSaveToCloud = { att -> viewModel.saveAttachmentToCloud(att, savedToCloud) },
                 )
             }
 
@@ -252,7 +407,7 @@ private fun MessageCard(
 }
 
 @Composable
-private fun BodySegments(segments: List<ConversationSegment>) {
+internal fun BodySegments(segments: List<ConversationSegment>) {
     Column(modifier = Modifier.fillMaxWidth()) {
         segments.forEachIndexed { index, segment ->
             if (segment.isQuote) {
@@ -293,8 +448,71 @@ private fun BodySegments(segments: List<ConversationSegment>) {
     }
 }
 
+/**
+ * Sits where the message will change, both while the model works and afterwards. Translating
+ * a long mail takes a good few seconds, so it says so plainly instead of leaving the body
+ * looking untouched and the user wondering whether the tap registered.
+ */
 @Composable
-private fun BodyText(text: String) {
+private fun TranslatedBanner(
+    languageLabel: String,
+    translating: Boolean,
+    onShowOriginal: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (translating) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Translate,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = if (translating) {
+                        stringResource(R.string.translating_to, languageLabel)
+                    } else {
+                        stringResource(R.string.translated_to, languageLabel)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                if (translating) {
+                    Text(
+                        text = stringResource(R.string.translate_wait),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (!translating) {
+                Text(
+                    text = stringResource(R.string.show_original),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onShowOriginal),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun BodyText(text: String) {
     Text(
         text = text,
         modifier = Modifier
@@ -305,7 +523,7 @@ private fun BodyText(text: String) {
 }
 
 @Composable
-private fun BodyEmpty(text: String) {
+internal fun BodyEmpty(text: String) {
     Text(
         text = text,
         modifier = Modifier
@@ -316,10 +534,11 @@ private fun BodyEmpty(text: String) {
 }
 
 @Composable
-private fun HtmlPart(html: String) {
+internal fun HtmlPart(html: String) {
     var contentHeightDp by remember(html) { mutableIntStateOf(0) }
     val baseModifier = Modifier.fillMaxWidth()
     val sizedModifier = if (contentHeightDp > 0) baseModifier.height(contentHeightDp.dp) else baseModifier
+    val httpClient = LocalContext.current.mailContainer().httpClient
 
     AndroidView(
         modifier = sizedModifier,
@@ -341,13 +560,11 @@ private fun HtmlPart(html: String) {
                 isHorizontalScrollBarEnabled = false
                 overScrollMode = WebView.OVER_SCROLL_NEVER
                 setBackgroundColor(0x00000000)
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        view.post { contentHeightDp = view.contentHeight.coerceAtLeast(40) }
-                        view.postDelayed({
-                            contentHeightDp = view.contentHeight.coerceAtLeast(40)
-                        }, 250)
-                    }
+                webViewClient = InlineImageWebViewClient(httpClient) { view ->
+                    view.post { contentHeightDp = view.contentHeight.coerceAtLeast(40) }
+                    view.postDelayed({
+                        contentHeightDp = view.contentHeight.coerceAtLeast(40)
+                    }, 250)
                 }
             }
         },
@@ -361,7 +578,7 @@ private fun HtmlPart(html: String) {
 // our wrapper produces two stacked documents and the inner <meta viewport> wins, breaking
 // the layout. Extract just the styles from <head> and the inner content of <body>.
 @Composable
-private fun BodyLoading() {
+internal fun BodyLoading() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -373,7 +590,7 @@ private fun BodyLoading() {
 }
 
 @Composable
-private fun BodyError(message: String) {
+internal fun BodyError(message: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -396,7 +613,7 @@ private fun BodyError(message: String) {
 }
 
 @Composable
-private fun DetailActionBar(
+internal fun DetailActionBar(
     isFlagged: Boolean,
     busy: Boolean,
     onReply: () -> Unit,
@@ -429,9 +646,11 @@ private fun DetailActionBar(
                 onClick = onForward,
             )
             DetailAction(
-                icon = if (isFlagged) Icons.Default.Star else Icons.Default.StarBorder,
-                label = if (isFlagged) stringResource(R.string.unstar) else stringResource(R.string.star),
-                tint = if (isFlagged) MaterialTheme.colorScheme.tertiary else null,
+                // The API calls this pin (§4.6) and so does the webmail; "destacar" made it
+                // read like a separate, second flag next to the colour ones.
+                icon = if (isFlagged) Icons.Default.PushPin else Icons.Outlined.PushPin,
+                label = if (isFlagged) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                tint = if (isFlagged) MaterialTheme.colorScheme.primary else null,
                 onClick = onToggleFlag,
             )
             DetailAction(
@@ -452,7 +671,7 @@ private fun DetailActionBar(
 }
 
 @Composable
-private fun DetailAction(
+internal fun DetailAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,

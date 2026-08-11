@@ -103,6 +103,15 @@ import androidx.compose.ui.res.stringResource
 import com.exmworkspace.exmwsmail.R
 import com.exmworkspace.exmwsmail.data.mail.FileAttachment
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.navigationBarsPadding
+import com.exmworkspace.exmwsmail.ui.mail.SheetAction
+import com.exmworkspace.exmwsmail.ui.mail.SheetNote
 import android.media.MediaPlayer
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -183,6 +192,54 @@ private fun AttachmentChip(att: FileAttachment, onRemove: () -> Unit) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The paperclip used to jump straight into the system document picker, which opens on its
+ * "Recent" root with a drawer button and no visible way back — the only exit is the back
+ * gesture, and people reasonably assume they are stuck. Asking here first means cancelling
+ * is always one tap away, and photos (most of what gets attached from a phone) go through
+ * the photo picker, which is a dismissible sheet rather than a full-screen activity.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun AttachSourceSheet(
+    onPickPhoto: () -> Unit,
+    onPickFile: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+            Text(
+                text = stringResource(R.string.attach_file),
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            SheetAction(
+                icon = Icons.Default.Image,
+                label = stringResource(R.string.attach_photo),
+                onClick = onPickPhoto,
+            )
+            SheetAction(
+                icon = Icons.Default.InsertDriveFile,
+                label = stringResource(R.string.attach_document),
+                onClick = onPickFile,
+            )
+            SheetNote(stringResource(R.string.attach_files_hint))
+            HorizontalDivider()
+            SheetAction(
+                icon = Icons.Default.Close,
+                label = stringResource(R.string.cancel),
+                onClick = onDismiss,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

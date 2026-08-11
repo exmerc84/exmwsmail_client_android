@@ -1,7 +1,9 @@
 package com.exmworkspace.exmwsmail.ui.mail
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import java.util.Locale
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +30,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FolderShared
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -56,6 +61,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -77,6 +83,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
@@ -99,7 +106,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.data.local.entity.FolderEntity
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
-import com.exmworkspace.exmwsmail.data.mail.FolderKind
+import com.exmworkspace.exmwsmail.data.mail.sharedOwnerLabel
+import com.exmworkspace.exmwsmail.data.mail.splitDrawerFolders
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -112,91 +120,230 @@ internal fun FolderListCard(
     folders: List<FolderEntity>,
     selectedId: Long?,
     onSelect: (FolderEntity) -> Unit,
+    onManage: (FolderEntity) -> Unit = {},
 ) {
     if (folders.isEmpty()) return
-    val firstCustomIndex = folders.indexOfFirst { it.kind == FolderKind.OTHER }
+    val sections = remember(folders) { splitDrawerFolders(folders) }
     Column(
         modifier = Modifier
             .padding(horizontal = 12.dp)
             .fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        folders.forEachIndexed { index, folder ->
-            if (index == firstCustomIndex && firstCustomIndex > 0) {
-                CustomFoldersHeader()
+        FolderGroupCard(sections.system, selectedId, onSelect, onManage)
+        if (sections.own.isNotEmpty()) {
+            FolderSectionHeader("Tus carpetas")
+            FolderGroupCard(sections.own, selectedId, onSelect, onManage)
+        }
+        if (sections.sharedWithMe.isNotEmpty()) {
+            FolderSectionHeader("Compartidas conmigo")
+            FolderGroupCard(sections.sharedWithMe, selectedId, onSelect, onManage)
+        }
+    }
+}
+
+/**
+ * One card per section with hairline-separated rows inside — the Apple Mail grouping the
+ * user asked for, instead of a stack of individual cards. The divider is inset to the text
+ * edge so the icon column stays visually continuous.
+ */
+@Composable
+private fun FolderGroupCard(
+    folders: List<FolderEntity>,
+    selectedId: Long?,
+    onSelect: (FolderEntity) -> Unit,
+    onManage: (FolderEntity) -> Unit,
+) {
+    if (folders.isEmpty()) return
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column {
+            folders.forEachIndexed { index, folder ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 50.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                }
+                FolderRow(
+                    folder = folder,
+                    isSelected = selectedId == folder.id,
+                    onClick = { onSelect(folder) },
+                    onLongClick = { onManage(folder) },
+                )
             }
-            FolderCard(
-                folder = folder,
-                isSelected = selectedId == folder.id,
-                onClick = { onSelect(folder) },
-            )
         }
     }
 }
 
 @Composable
-internal fun CustomFoldersHeader() {
-    Spacer(Modifier.height(8.dp))
-    HorizontalDivider(
-        thickness = 1.dp,
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
+private fun FolderSectionHeader(text: String) {
+    // The grouped cards already separate the blocks, so the header needs no rule of its own.
     Text(
-        text = "Tus carpetas",
+        text = text,
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun FolderCard(
+private fun FolderRow(
     folder: FolderEntity,
     isSelected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
 ) {
-    ElevatedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.elevatedCardElevation(
-            defaultElevation = if (isSelected) 4.dp else 2.dp,
-        ),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.surface,
-        ),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = folderIcon(folder.kind),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            // Selection marks the row inside the group, Apple-style, not a whole card.
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                else Color.Transparent
             )
-            Spacer(Modifier.width(14.dp))
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val owner = folder.sharedOwner
+        // Outlined glyph in the single accent colour — the Apple Mail look the user asked
+        // for. The per-role tints stayed where they were liked: avatars and attachments.
+        Icon(
+            imageVector = if (owner != null) Icons.Outlined.FolderShared
+            else folderIconOutlined(folder.kind),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = folderLabel(folder),
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (isSelected || folder.unseenCount > 0) FontWeight.SemiBold
+                else FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+            // Whose folder it is. Two people can name a folder the same thing, so the
+            // section header alone does not say which one the user is opening.
+            if (owner != null) {
+                Text(
+                    text = sharedOwnerLabel(owner),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        // Counters come from the backend cache and refresh right after every action,
+        // so the badge can be trusted without a round-trip to IMAP (§4.1).
+        if (folder.unseenCount > 0) {
+            Spacer(Modifier.width(8.dp))
+            UnreadBadge(count = folder.unseenCount)
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun UnreadBadge(count: Int) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.primary,
+    ) {
+        Text(
+            text = if (count > 99) "99+" else count.toString(),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onPrimary,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * Mailbox storage (§4.15), under the account it belongs to. Hidden when the backend does not
+ * report a quota — showing "0 B de 0 B" would read as an empty mailbox rather than as no data.
+ */
+@Composable
+internal fun QuotaBar(used: Long, total: Long) {
+    if (total <= 0L) return
+    val fraction = (used.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+    val tint = when {
+        fraction >= 0.9f -> MaterialTheme.colorScheme.error
+        fraction >= 0.75f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 6.dp, end = 6.dp, top = 10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.storage),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(
+                    R.string.storage_usage,
+                    formatBytes(used),
+                    formatBytes(total),
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(CircleShape),
+            color = tint,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            drawStopIndicator = {},
+        )
     }
+}
+
+/** Binary units, which is what mail servers report and what the webmail shows. */
+internal fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val units = listOf("KB", "MB", "GB", "TB")
+    var value = bytes.toDouble() / 1024
+    var unit = 0
+    while (value >= 1024 && unit < units.lastIndex) {
+        value /= 1024
+        unit++
+    }
+    return if (value >= 100) "${value.roundToInt()} ${units[unit]}"
+    else String.format(Locale.US, "%.1f %s", value, units[unit])
 }
 
 @Composable
@@ -260,6 +407,8 @@ internal fun DrawerActionCard(
     label: String,
     onClick: () -> Unit,
     tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    /** Shown only when positive — a "0" badge announces nothing worth announcing. */
+    badge: Int = 0,
 ) {
     ElevatedCard(
         onClick = onClick,
@@ -273,13 +422,23 @@ internal fun DrawerActionCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(14.dp))
+            // Same container treatment as the folder cards above, neutral fill: these are
+            // actions, not locations, so they share the shape but not the colour coding.
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.size(34.dp),
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
@@ -288,6 +447,10 @@ internal fun DrawerActionCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (badge > 0) {
+                UnreadBadge(count = badge)
+                Spacer(Modifier.width(6.dp))
+            }
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,

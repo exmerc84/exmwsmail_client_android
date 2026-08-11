@@ -24,7 +24,8 @@ import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
         MessageBodyEntity::class,
         AttachmentEntity::class,
     ],
-    version = 3,
+    // v4: rebuilt for the REST backend (string uids, threads, server-side counters).
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
 import com.exmworkspace.exmwsmail.ui.components.ExmField
+import com.exmworkspace.exmwsmail.ui.mail.DisplayLocale
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -240,7 +241,7 @@ private fun EmptyState(text: String) {
 
 private fun formatDate(epochMs: Long): String {
     if (epochMs <= 0) return ""
-    return SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(epochMs))
+    return SimpleDateFormat("d MMM", DisplayLocale).format(Date(epochMs))
 }
 
 @Composable

@@ -115,17 +115,20 @@ internal fun wrapHtmlForViewport(html: String): String {
     <style>
       html, body {
         margin: 0 !important;
-        padding: 0 !important;
         background: transparent !important;
         width: 100% !important;
         max-width: 100% !important;
         overflow-x: hidden !important;
       }
+      html { padding: 0 !important; }
       body {
         font-family: sans-serif;
-        font-size: 16px;
-        line-height: 1.5;
-        padding: 16px;
+        font-size: 15px;
+        line-height: 1.6;
+        /* Must outrank the sender's own "body { padding: 0 }" — and note that our reset
+           above used to carry !important on padding, which silently cancelled this and
+           left plain-text mail flush against the card edge. */
+        padding: 16px !important;
         color: #1f2937;
         word-wrap: break-word;
         overflow-wrap: anywhere;

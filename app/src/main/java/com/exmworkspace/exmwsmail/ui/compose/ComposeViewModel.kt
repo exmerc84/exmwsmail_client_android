@@ -14,24 +14,41 @@ import com.exmworkspace.exmwsmail.data.repository.AuthRepository
 import com.exmworkspace.exmwsmail.data.mail.FileAttachment
 import android.net.Uri
 import android.content.Context
+import com.exmworkspace.exmwsmail.data.remote.dto.ContactDto
+import com.exmworkspace.exmwsmail.data.repository.ContactsRepository
 import com.exmworkspace.exmwsmail.data.repository.MailRepository
 import com.exmworkspace.exmwsmail.data.repository.MessageDetail
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import com.exmworkspace.exmwsmail.ui.appContainer
+import com.exmworkspace.exmwsmail.ui.describeFailure
+import com.exmworkspace.exmwsmail.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.exmworkspace.exmwsmail.data.mail.plainText
+import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftOptionDto
+import com.exmworkspace.exmwsmail.data.remote.dto.AiMessageDto
+import com.exmworkspace.exmwsmail.ui.mail.DisplayLocale
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 
 class ComposeViewModel(
     private val mailRepository: MailRepository,
     private val authRepository: AuthRepository,
+    private val contactsRepository: ContactsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -41,21 +58,240 @@ class ComposeViewModel(
     private val _userEmail = MutableStateFlow<String?>(null)
     val userEmail: StateFlow<String?> = _userEmail.asStateFlow()
 
-    private val originalMessageId: Long = savedStateHandle.get<Long>("messageId") ?: -1L
-    private val mode: ComposeMode = when (savedStateHandle.get<String>("mode")) {
-        "reply" -> ComposeMode.REPLY
-        "forward" -> ComposeMode.FORWARD
-        else -> ComposeMode.NEW
-    }
+    /** Which recipient field the suggestions belong to, so they render under the right one. */
+    private val _suggestionsFor = MutableStateFlow<RecipientField?>(null)
+    val suggestionsFor: StateFlow<RecipientField?> = _suggestionsFor.asStateFlow()
 
-    init {
+    private val _suggestions = MutableStateFlow<List<ContactDto>>(emptyList())
+    val suggestions: StateFlow<List<ContactDto>> = _suggestions.asStateFlow()
+
+    private var suggestJob: Job? = null
+
+    /** Suggested replies from §4.21; null while the sheet is closed. */
+    private val _draftOptions = MutableStateFlow<List<AiDraftOptionDto>?>(null)
+    val draftOptions: StateFlow<List<AiDraftOptionDto>?> = _draftOptions.asStateFlow()
+
+    private val _draftLoading = MutableStateFlow(false)
+    val draftLoading: StateFlow<Boolean> = _draftLoading.asStateFlow()
+
+    /**
+     * Asks the model for three ways to write this mail.
+     *
+     * The message being answered goes along as context — the endpoint returns 502 with an
+     * empty `messages`, verified live — and so does whatever the user has typed so far, which
+     * is what steers the suggestions towards what they actually meant to say.
+     */
+    fun requestAiDraft() {
+        if (_draftLoading.value) return
         viewModelScope.launch {
-            _userEmail.value = authRepository.currentCredentials()?.email
-            if (mode != ComposeMode.NEW && originalMessageId > 0) {
-                prefillFromOriginal()
+            _draftLoading.value = true
+            _draftOptions.value = emptyList()
+            try {
+                val current = _state.value
+                val context = originalMessageId.takeIf { it > 0 }?.let { id ->
+                    val message = mailRepository.findMessage(id) ?: return@let null
+                    val body = mailRepository.observeMessageDetail(id).first().body?.plainText()
+                    AiMessageDto(
+                        sender = message.from,
+                        date = Date(message.internalDate).toString(),
+                        body = body.orEmpty(),
+                    )
+                }
+                if (context == null) {
+                    _state.update { it.copy(error = "Necesito el correo original para proponer una respuesta") }
+                    _draftOptions.value = null
+                    return@launch
+                }
+                _draftOptions.value = mailRepository.aiDraft(
+                    subject = current.subject,
+                    messages = listOf(context),
+                    myDraft = current.body.text,
+                    isReply = mode == ComposeMode.REPLY,
+                )
+            } catch (e: Exception) {
+                _state.update { it.copy(error = authRepository.describeFailure(e)) }
+                _draftOptions.value = null
+            } finally {
+                _draftLoading.value = false
             }
         }
     }
+
+    /** Replaces what is written with the chosen suggestion, keeping the quoted original. */
+    fun useDraft(option: AiDraftOptionDto) {
+        _state.update { it.copy(body = TextFieldValue(option.text)) }
+        _draftOptions.value = null
+    }
+
+    fun dismissDraftOptions() {
+        _draftOptions.value = null
+    }
+
+    private val originalMessageId: Long = savedStateHandle.get<Long>("messageId") ?: -1L
+
+    /** Exposed so the header can say what the user is actually doing. */
+    val composeMode: ComposeMode get() = mode
+
+    private val mode: ComposeMode = when (savedStateHandle.get<String>("mode")) {
+        "reply" -> ComposeMode.REPLY
+        "forward" -> ComposeMode.FORWARD
+        "draft" -> ComposeMode.DRAFT
+        else -> ComposeMode.NEW
+    }
+
+    /**
+     * Identifies this composer window server-side. Drafts are per-window, not per-user, so
+     * the id has to be stable across recompositions and process death (§4.16).
+     */
+    private val clientDraftId: String =
+        savedStateHandle.get<String>(KEY_CLIENT_DRAFT_ID)
+            ?: UUID.randomUUID().toString().also { savedStateHandle[KEY_CLIENT_DRAFT_ID] = it }
+
+    /** uid of the last saved revision — sent as `prev_uid` so the backend replaces it. */
+    private var draftUid: String? = null
+
+    /** Local row of the draft being edited, so discarding also clears it from the list. */
+    private var draftLocalId: Long? = null
+
+    /**
+     * Attachments only ride along when they actually changed: periodic autosaves use
+     * `attachments_mode=keep` so a 10 MB file is not re-uploaded on every pause (§4.16).
+     */
+    private var attachmentsDirty = false
+
+    /** RFC 5322 Message-Id of the original — sent as `in_reply_to` / `forward_of` (§4.12). */
+    private var originalMessageIdHeader: String? = null
+
+    /** The original's References chain, so a reply-to-a-reply stays in the same thread. */
+    private var originalReferences: String? = null
+
+    init {
+        viewModelScope.launch {
+            _userEmail.value = authRepository.currentEmail()
+            // Opened from a contact: start with them already in "To".
+            savedStateHandle.get<String>("to")?.takeIf { it.isNotBlank() }?.let { address ->
+                _state.update { it.copy(to = listOf(address)) }
+            }
+            if (mode != ComposeMode.NEW && originalMessageId > 0) {
+                prefillFromOriginal()
+            }
+            startAutosave()
+        }
+    }
+
+    /**
+     * Persists the draft a few seconds after the user stops typing. Keyed on the fields that
+     * actually reach the server, so cursor moves and formatting-panel toggles don't trigger
+     * uploads.
+     */
+    @OptIn(FlowPreview::class)
+    private fun CoroutineScope.startAutosave() {
+        launch {
+            _state
+                .map { s ->
+                    DraftSnapshot(
+                        to = mergeWithDraft(s.to, s.toDraft),
+                        cc = mergeWithDraft(s.cc, s.ccDraft),
+                        bcc = mergeWithDraft(s.bcc, s.bccDraft),
+                        subject = s.subject,
+                        body = s.body.text,
+                        attachmentCount = s.attachments.size,
+                        empty = s.isEmpty,
+                        finished = s.sent || s.discarded,
+                    )
+                }
+                .distinctUntilChanged()
+                .debounce(AUTOSAVE_DEBOUNCE_MS)
+                .collect { snapshot ->
+                    if (snapshot.empty || snapshot.finished) return@collect
+                    persistDraft()
+                }
+        }
+    }
+
+    /** Explicit save — used when leaving the composer before the debounce elapses. */
+    fun saveDraftAndExit(onDone: () -> Unit) {
+        val current = _state.value
+        if (current.isEmpty || current.sent) {
+            onDone()
+            return
+        }
+        viewModelScope.launch {
+            persistDraft()
+            mailRepository.refreshDraftsFolder()
+            onDone()
+        }
+    }
+
+    fun discardDraft(onDone: () -> Unit) {
+        viewModelScope.launch {
+            if (draftUid != null || draftLocalId != null) {
+                runCatching {
+                    mailRepository.deleteDraft(clientDraftId, draftUid, draftLocalId)
+                }
+            }
+            _state.update { it.copy(discarded = true) }
+            onDone()
+        }
+    }
+
+    private suspend fun persistDraft() {
+        val current = _state.value
+        if (current.isEmpty || current.sent || current.discarded) return
+        _state.update { it.copy(savingDraft = true) }
+        try {
+            val uploadAttachments = attachmentsDirty
+            val saved = mailRepository.saveDraft(
+                message = outgoingFrom(current),
+                clientDraftId = clientDraftId,
+                previousUid = draftUid,
+                uploadAttachments = uploadAttachments,
+            )
+            if (saved != null) {
+                draftUid = saved
+                // The replacement supersedes the row we opened from the Drafts list.
+                draftLocalId = null
+                if (uploadAttachments) attachmentsDirty = false
+            }
+            _state.update { it.copy(savingDraft = false, draftSaved = saved != null) }
+        } catch (e: Exception) {
+            // Autosave must never interrupt writing — surface nothing, just stop trying now.
+            AppLog.w(TAG, "draft autosave failed: ${e.message}")
+            _state.update { it.copy(savingDraft = false) }
+        }
+    }
+
+    private fun outgoingFrom(current: ComposeUiState): OutgoingMessage {
+        val isHtml = current.isRichText()
+        return OutgoingMessage(
+            to = mergeWithDraft(current.to, current.toDraft),
+            cc = mergeWithDraft(current.cc, current.ccDraft),
+            bcc = mergeWithDraft(current.bcc, current.bccDraft),
+            subject = current.subject,
+            body = if (isHtml) bodyToHtml(current) else current.body.text,
+            isHtml = isHtml,
+            inReplyTo = originalMessageIdHeader.takeIf { mode == ComposeMode.REPLY },
+            references = replyReferences(),
+            forwardOf = originalMessageIdHeader.takeIf { mode == ComposeMode.FORWARD },
+            attachments = current.attachments,
+        )
+    }
+
+    private fun ComposeUiState.isRichText(): Boolean =
+        bodyStyles.isNotEmpty() || colorSpans.isNotEmpty() || sizeSpans.isNotEmpty() ||
+            familySpans.isNotEmpty() || alignSpans.isNotEmpty() || listSpans.isNotEmpty() ||
+            quotedHtml != null
+
+    private data class DraftSnapshot(
+        val to: List<String>,
+        val cc: List<String>,
+        val bcc: List<String>,
+        val subject: String,
+        val body: String,
+        val attachmentCount: Int,
+        val empty: Boolean,
+        val finished: Boolean,
+    )
 
     private suspend fun prefillFromOriginal() {
         try {
@@ -67,8 +303,28 @@ class ComposeViewModel(
             val detail = mailRepository.observeMessageDetail(originalMessageId)
                 .first { it.message != null && (it.body != null || mode == ComposeMode.FORWARD) }
             val msg = detail.message ?: return
-            val fromAddr = parseFirstAddress(msg.from)
-            val whenLine = SimpleDateFormat("d MMM yyyy 'a las' HH:mm", Locale.getDefault())
+            originalMessageIdHeader = msg.messageId
+            originalReferences = msg.references
+
+            if (mode == ComposeMode.DRAFT) {
+                // Continue editing an existing draft: its uid becomes prev_uid so the next
+                // save replaces it instead of piling up copies in the Drafts folder.
+                draftUid = msg.uid
+                draftLocalId = msg.id
+                _state.update {
+                    it.copy(
+                        to = splitAddresses(msg.to),
+                        cc = splitAddresses(msg.cc),
+                        ccBccExpanded = !msg.cc.isNullOrBlank(),
+                        subject = msg.subject,
+                        body = TextFieldValue(draftBodyText(detail.body?.text, detail.body?.html)),
+                    )
+                }
+                return
+            }
+
+            val fromAddr = parseFirstAddress(msg.fromAddress ?: msg.from)
+            val whenLine = SimpleDateFormat("d MMM yyyy 'a las' HH:mm", DisplayLocale)
                 .format(Date(msg.internalDate.takeIf { it > 0 } ?: System.currentTimeMillis()))
             val originalHtml = buildOriginalHtml(detail.body?.text, detail.body?.html)
             val (newSubject, prefilledTo, header) = when (mode) {
@@ -85,7 +341,8 @@ class ComposeViewModel(
                         "Asunto: ${msg.subject}\n" +
                         "Fecha: $whenLine",
                 )
-                ComposeMode.NEW -> Triple(msg.subject, emptyList(), null)
+                // DRAFT returned above; NEW never reaches prefill.
+                ComposeMode.NEW, ComposeMode.DRAFT -> Triple(msg.subject, emptyList(), null)
             }
             _state.update {
                 it.copy(
@@ -103,6 +360,30 @@ class ComposeViewModel(
 
     fun removeQuote() {
         _state.update { it.copy(quotedHtml = null, quotedHeader = null) }
+    }
+
+    private fun splitAddresses(value: String?): List<String> =
+        value?.split(',', ';')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+
+    /**
+     * The editor is plain text plus span metadata, so an HTML draft comes back as text.
+     * Formatting applied in a previous session is not restored.
+     */
+    private fun draftBodyText(text: String?, html: String?): String {
+        text?.takeIf { it.isNotBlank() }?.let { return it }
+        val source = html?.takeIf { it.isNotBlank() } ?: return ""
+        return extractBody(source)
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</p>"), "\n")
+            .replace(Regex("<[^>]+>"), "")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .trim()
     }
 
     private fun buildOriginalHtml(text: String?, html: String?): String {
@@ -220,6 +501,7 @@ class ComposeViewModel(
                 RecipientField.BCC -> current.copy(bccDraft = value, error = null)
             }
         }
+        refreshSuggestions(field, value)
     }
 
     fun commitDraft(field: RecipientField) {
@@ -230,6 +512,40 @@ class ComposeViewModel(
             return
         }
         addRecipient(field, draft)
+    }
+
+    /**
+     * Looks up contacts for whatever the user is typing into a recipient field (§5).
+     * Debounced so a fast typist does not fire a request per keystroke.
+     */
+    private fun refreshSuggestions(field: RecipientField, draft: String) {
+        suggestJob?.cancel()
+        val query = draft.trim()
+        if (query.length < MIN_SUGGEST_CHARS) {
+            _suggestions.value = emptyList()
+            _suggestionsFor.value = null
+            return
+        }
+        _suggestionsFor.value = field
+        suggestJob = viewModelScope.launch {
+            delay(SUGGEST_DEBOUNCE_MS)
+            val already = (recipientsOf(field) + _state.value.to + _state.value.cc +
+                _state.value.bcc).map { it.lowercase() }.toSet()
+            val found = runCatching { contactsRepository.suggest(query) }.getOrDefault(emptyList())
+            _suggestions.value = found.filterNot { it.email?.lowercase() in already }
+        }
+    }
+
+    fun dismissSuggestions() {
+        suggestJob?.cancel()
+        _suggestions.value = emptyList()
+        _suggestionsFor.value = null
+    }
+
+    fun acceptSuggestion(field: RecipientField, contact: ContactDto) {
+        val email = contact.email ?: return
+        addRecipient(field, email)
+        dismissSuggestions()
     }
 
     fun addRecipient(field: RecipientField, email: String) {
@@ -301,6 +617,7 @@ class ComposeViewModel(
                 val type = contentResolver.getType(uri) ?: "application/octet-stream"
 
                 val attachment = FileAttachment(name, type, bytes)
+                attachmentsDirty = true
                 _state.update { it.copy(attachments = it.attachments + attachment) }
             } catch (e: Exception) {
                 _state.update { it.copy(error = e.message) }
@@ -309,6 +626,7 @@ class ComposeViewModel(
     }
 
     fun removeAttachment(attachment: FileAttachment) {
+        attachmentsDirty = true
         _state.update { it.copy(attachments = it.attachments - attachment) }
     }
 
@@ -574,32 +892,34 @@ class ComposeViewModel(
         _state.update { it.copy(sending = true, error = null) }
         viewModelScope.launch {
             try {
-                val isHtml = current.bodyStyles.isNotEmpty() ||
-                    current.colorSpans.isNotEmpty() ||
-                    current.sizeSpans.isNotEmpty() ||
-                    current.familySpans.isNotEmpty() ||
-                    current.alignSpans.isNotEmpty() ||
-                    current.listSpans.isNotEmpty() ||
-                    current.quotedHtml != null
-                val bodyContent = if (isHtml) bodyToHtml(current) else current.body.text
                 mailRepository.sendMessage(
-                    OutgoingMessage(
-                        to = toList,
-                        cc = ccList,
-                        bcc = bccList,
-                        subject = current.subject,
-                        body = bodyContent,
-                        isHtml = isHtml,
-                        attachments = current.attachments,
-                    )
+                    outgoingFrom(current).copy(to = toList, cc = ccList, bcc = bccList)
                 )
+                // The message is out; its draft must not linger in the Drafts folder (§7.5).
+                if (draftUid != null || draftLocalId != null) {
+                    runCatching {
+                        mailRepository.deleteDraft(clientDraftId, draftUid, draftLocalId)
+                    }
+                }
                 _state.update { it.copy(sending = false, sent = true) }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(sending = false, error = e.message ?: e::class.java.simpleName)
+                    it.copy(sending = false, error = authRepository.describeFailure(e))
                 }
             }
         }
+    }
+
+    /**
+     * The original's References chain with its own Message-Id appended — the backend needs
+     * both to keep a reply-to-a-reply in the same thread (§4.12).
+     */
+    private fun replyReferences(): List<String> {
+        if (mode != ComposeMode.REPLY) return emptyList()
+        val chain = originalReferences?.trim()?.split(Regex("\\s+")).orEmpty()
+        return (chain + listOfNotNull(originalMessageIdHeader))
+            .filter { it.isNotBlank() }
+            .distinct()
     }
 
     private fun draftOf(field: RecipientField): String = when (field) {
@@ -639,12 +959,19 @@ class ComposeViewModel(
         spans.firstOrNull { it.start <= start && it.end >= end }?.sp
 
     companion object {
+        private const val TAG = "ComposeViewModel"
+        private const val KEY_CLIENT_DRAFT_ID = "client_draft_id"
+        private const val AUTOSAVE_DEBOUNCE_MS = 2_500L
+        private const val SUGGEST_DEBOUNCE_MS = 220L
+        private const val MIN_SUGGEST_CHARS = 2
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = appContainer()
                 ComposeViewModel(
                     container.mailRepository,
                     container.authRepository,
+                    container.contactsRepository,
                     createSavedStateHandle(),
                 )
             }

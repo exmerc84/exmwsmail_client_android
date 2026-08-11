@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatQuote
@@ -65,6 +66,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.data.local.entity.AttachmentEntity
 import java.io.File
+import com.exmworkspace.exmwsmail.ui.mail.DisplayLocale
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -74,7 +76,10 @@ import java.util.Locale
 @Composable
 internal fun AttachmentsCard(
     attachments: List<AttachmentEntity>,
+    downloadingId: Long?,
     onOpen: (AttachmentEntity) -> Unit,
+    /** Null hides the action — the thread view has no per-message cloud target yet. */
+    onSaveToCloud: ((AttachmentEntity) -> Unit)? = null,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -89,7 +94,12 @@ internal fun AttachmentsCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             attachments.forEach { att ->
-                AttachmentRow(att, onOpen = { onOpen(att) })
+                AttachmentRow(
+                    att = att,
+                    downloading = downloadingId == att.id,
+                    onOpen = { onOpen(att) },
+                    onSaveToCloud = onSaveToCloud?.let { save -> { save(att) } },
+                )
             }
             Spacer(Modifier.height(4.dp))
         }
@@ -97,7 +107,12 @@ internal fun AttachmentsCard(
 }
 
 @Composable
-private fun AttachmentRow(att: AttachmentEntity, onOpen: () -> Unit) {
+private fun AttachmentRow(
+    att: AttachmentEntity,
+    downloading: Boolean,
+    onOpen: () -> Unit,
+    onSaveToCloud: (() -> Unit)? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -124,11 +139,27 @@ private fun AttachmentRow(att: AttachmentEntity, onOpen: () -> Unit) {
                 maxLines = 1,
             )
         }
-        IconButton(onClick = onOpen) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = stringResource(R.string.open_attachment)
+        if (downloading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
             )
+            Spacer(Modifier.width(12.dp))
+        } else {
+            if (onSaveToCloud != null) {
+                IconButton(onClick = onSaveToCloud) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
+                        contentDescription = stringResource(R.string.save_to_cloud),
+                    )
+                }
+            }
+            IconButton(onClick = onOpen) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = stringResource(R.string.open_attachment)
+                )
+            }
         }
     }
 }
@@ -148,12 +179,13 @@ private fun formatSize(bytes: Long): String {
 
 internal fun formatFullDate(epochMs: Long): String {
     if (epochMs <= 0) return ""
-    val fmt = SimpleDateFormat("d MMM yyyy · HH:mm", Locale.getDefault())
+    val fmt = SimpleDateFormat("d MMM yyyy · HH:mm", DisplayLocale)
     return fmt.format(Date(epochMs))
 }
 
 internal fun openAttachment(context: Context, att: AttachmentEntity) {
-    val file = File(att.localPath)
+    val path = att.localPath ?: return
+    val file = File(path)
     if (!file.exists()) return
     val uri = runCatching {
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)

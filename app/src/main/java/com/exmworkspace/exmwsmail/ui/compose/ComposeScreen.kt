@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.StrikethroughS
 import androidx.compose.material.icons.filled.TextFormat
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -97,12 +98,14 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.exmworkspace.exmwsmail.R
 import com.exmworkspace.exmwsmail.data.mail.FileAttachment
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.AutoAwesome
 import android.media.MediaPlayer
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -136,6 +139,39 @@ fun ComposeScreen(
     ) { uri: Uri? ->
         uri?.let { viewModel.addAttachment(context, it) }
     }
+    val photoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.addAttachment(context, it) }
+    }
+    var attachSourceOpen by remember { mutableStateOf(false) }
+
+    val draftOptions by viewModel.draftOptions.collectAsState()
+    val draftLoading by viewModel.draftLoading.collectAsState()
+    draftOptions?.let { options ->
+        AiDraftSheet(
+            options = options,
+            loading = draftLoading,
+            onUse = viewModel::useDraft,
+            onDismiss = viewModel::dismissDraftOptions,
+        )
+    }
+
+    if (attachSourceOpen) {
+        AttachSourceSheet(
+            onPickPhoto = {
+                attachSourceOpen = false
+                photoLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                )
+            },
+            onPickFile = {
+                attachSourceOpen = false
+                fileLauncher.launch("*/*")
+            },
+            onDismiss = { attachSourceOpen = false },
+        )
+    }
 
     val toListNonEmpty = state.to.isNotEmpty() ||
         state.toDraft.trim().contains("@")
@@ -165,6 +201,43 @@ fun ComposeScreen(
             )
             onBack()
         }
+    }
+
+    val suggestions by viewModel.suggestions.collectAsState()
+    val suggestionsFor by viewModel.suggestionsFor.collectAsState()
+
+    // Leaving with content on screen must not lose it: the user chooses between keeping the
+    // draft (already autosaved server-side) and dropping it for good.
+    var confirmExit by remember { mutableStateOf(false) }
+    val requestExit: () -> Unit = {
+        if (state.isEmpty) onBack() else confirmExit = true
+    }
+
+    BackHandler(enabled = !state.sent) { requestExit() }
+
+    if (confirmExit) {
+        AlertDialog(
+            onDismissRequest = { confirmExit = false },
+            title = { Text(stringResource(R.string.save_draft)) },
+            text = { Text(stringResource(R.string.draft_discard_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmExit = false
+                    viewModel.saveDraftAndExit(onBack)
+                }) { Text(stringResource(R.string.save_draft)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    confirmExit = false
+                    viewModel.discardDraft(onBack)
+                }) {
+                    Text(
+                        text = stringResource(R.string.discard),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+        )
     }
 
     state.showAddDialogFor?.let { field ->
@@ -208,13 +281,19 @@ fun ComposeScreen(
                     sending = state.sending,
                     bodyFocused = bodyFocused,
                     formatActive = formatPanelOpen,
-                    onClose = onBack,
+                    onClose = requestExit,
                     onSend = viewModel::send,
                     onToggleFormat = { formatPanelOpen = !formatPanelOpen },
-                    onAttach = { fileLauncher.launch("*/*") },
+                    onAttach = { attachSourceOpen = true },
+                    onAiDraft = if (viewModel.composeMode == ComposeMode.REPLY ||
+                        viewModel.composeMode == ComposeMode.FORWARD
+                    ) viewModel::requestAiDraft else null,
                 )
                 Text(
-                    text = stringResource(R.string.new_message),
+                    text = stringResource(
+                        if (viewModel.composeMode == ComposeMode.DRAFT) R.string.edit_draft
+                        else R.string.new_message
+                    ),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -242,6 +321,12 @@ fun ComposeScreen(
                             AddRecipientButton(onClick = { viewModel.openAddDialog(RecipientField.TO) })
                         },
                     )
+                    if (suggestionsFor == RecipientField.TO) {
+                        RecipientSuggestions(
+                            suggestions = suggestions,
+                            onPick = { viewModel.acceptSuggestion(RecipientField.TO, it) },
+                        )
+                    }
                     RowDivider()
 
                     if (!state.ccBccExpanded) {
@@ -269,6 +354,12 @@ fun ComposeScreen(
                                 })
                             },
                         )
+                        if (suggestionsFor == RecipientField.CC) {
+                            RecipientSuggestions(
+                                suggestions = suggestions,
+                                onPick = { viewModel.acceptSuggestion(RecipientField.CC, it) },
+                            )
+                        }
                         RowDivider()
                         RecipientChipsRow(
                             label = stringResource(R.string.bcc_label),
@@ -288,6 +379,12 @@ fun ComposeScreen(
                                 })
                             },
                         )
+                        if (suggestionsFor == RecipientField.BCC) {
+                            RecipientSuggestions(
+                                suggestions = suggestions,
+                                onPick = { viewModel.acceptSuggestion(RecipientField.BCC, it) },
+                            )
+                        }
                         RowDivider()
                         StaticInfoRow(
                             label = stringResource(R.string.from_label),
@@ -379,6 +476,7 @@ private fun TopActionRow(
     onSend: () -> Unit,
     onToggleFormat: () -> Unit,
     onAttach: () -> Unit,
+    onAiDraft: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -400,6 +498,24 @@ private fun TopActionRow(
         }
         Spacer(Modifier.weight(1f))
         
+        // Only when answering something: with no original the endpoint has no context to
+        // work from and returns 502 (§4.21).
+        if (onAiDraft != null) {
+            CircleIconButton(
+                onClick = onAiDraft,
+                enabled = !sending,
+                background = MaterialTheme.colorScheme.surfaceContainerHigh,
+                iconTint = MaterialTheme.colorScheme.primary,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = stringResource(R.string.ai_draft),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+
         CircleIconButton(
             onClick = onAttach,
             enabled = !sending,
@@ -737,6 +853,18 @@ private fun BodyArea(
         ),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         visualTransformation = transformation,
+        // BasicTextField has no placeholder slot; the hint renders behind the (empty) field.
+        // Below "Asunto:" there was just white void — nothing said "the message goes here".
+        decorationBox = { innerTextField ->
+            if (value.text.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.compose_body_hint),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            }
+            innerTextField()
+        },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 16.dp)

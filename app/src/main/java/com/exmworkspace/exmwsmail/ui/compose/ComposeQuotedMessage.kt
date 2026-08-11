@@ -119,6 +119,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.ui.components.ExmField
+import com.exmworkspace.exmwsmail.ui.mail.detail.InlineImageWebViewClient
+import com.exmworkspace.exmwsmail.ui.mailContainer
 import kotlinx.coroutines.launch
 
 // Quoted-original card, its HTML viewer, and the send sound helper.
@@ -185,6 +187,7 @@ private fun QuotedHtmlView(html: String) {
     val baseModifier = Modifier.fillMaxWidth()
     val sizedModifier = if (contentHeightDp > 0)
         baseModifier.height(contentHeightDp.dp) else baseModifier
+    val httpClient = androidx.compose.ui.platform.LocalContext.current.mailContainer().httpClient
     AndroidView(
         modifier = sizedModifier,
         factory = { ctx ->
@@ -200,13 +203,13 @@ private fun QuotedHtmlView(html: String) {
                 isVerticalScrollBarEnabled = false
                 overScrollMode = WebView.OVER_SCROLL_NEVER
                 setBackgroundColor(0x00000000)
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        view.post { contentHeightDp = view.contentHeight.coerceAtLeast(40) }
-                        view.postDelayed({
-                            contentHeightDp = view.contentHeight.coerceAtLeast(40)
-                        }, 250)
-                    }
+                // The quoted body carries the original's inline images as API URLs, which
+                // only load with the session's Bearer token.
+                webViewClient = InlineImageWebViewClient(httpClient) { view ->
+                    view.post { contentHeightDp = view.contentHeight.coerceAtLeast(40) }
+                    view.postDelayed({
+                        contentHeightDp = view.contentHeight.coerceAtLeast(40)
+                    }, 250)
                 }
             }
         },

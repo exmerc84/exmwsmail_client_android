@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.exmworkspace.exmwsmail.service.MailIdleService
+import com.exmworkspace.exmwsmail.service.MailNotifications
 import com.exmworkspace.exmwsmail.ui.login.LoginScreen
 
 @Composable
@@ -27,23 +27,21 @@ fun RootContent(
 
     val notificationsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* result ignored — service runs regardless */ }
+    ) { /* Push still registers; only the system tray display depends on this. */ }
 
     LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val granted = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                ) == PackageManager.PERMISSION_GRANTED
-                if (!granted) {
-                    notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+        if (!isLoggedIn) return@LaunchedEffect
+        MailNotifications.ensureChannels(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
-            MailIdleService.start(context)
-        } else {
-            MailIdleService.stop(context)
         }
+        viewModel.onSessionReady()
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {

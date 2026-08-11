@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "831943182936",
+    "project_id": "exm-work-space",
+    "storage_bucket": "exm-work-space.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:831943182936:android:605732fc0c5120f650582d",
+        "android_client_info": {
+          "package_name": "com.exmworkspace.exmwsfield"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZLGIkdF3luU5Xl5VfM2YiAEN8jgaiN_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:831943182936:android:4e390dfe9ad15e8c50582d",
+        "android_client_info": {
+          "package_name": "com.exmworkspace.mail"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZLGIkdF3luU5Xl5VfM2YiAEN8jgaiN_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

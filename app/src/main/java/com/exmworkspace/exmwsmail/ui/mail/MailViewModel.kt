@@ -11,9 +11,15 @@ import com.exmworkspace.exmwsmail.data.mail.FolderKind
 import com.exmworkspace.exmwsmail.data.repository.AuthRepository
 import com.exmworkspace.exmwsmail.data.repository.MailRepository
 import com.exmworkspace.exmwsmail.ui.appContainer
+import com.exmworkspace.exmwsmail.ui.describeFailure
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareDto
+import com.exmworkspace.exmwsmail.data.remote.dto.QuotaDto
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,7 +32,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.mail.AuthenticationFailedException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MailViewModel(
@@ -48,6 +53,17 @@ class MailViewModel(
 
     fun selectCategory(category: MailCategory) {
         _selectedCategory.value = category
+        // The chip filters the cache, which stops at the pages paged in so far. Ask the
+        // server for the category as well, or matches deeper in the folder stay invisible.
+        val apiValue = category.apiValue ?: return
+        val folder = selectedFolder.value ?: return
+        viewModelScope.launch {
+            try {
+                mailRepository.syncCategory(folder, apiValue)
+            } catch (e: Exception) {
+                _error.update { authRepository.describeFailure(e) }
+            }
+        }
     }
 
     private val _refreshing = MutableStateFlow(false)
@@ -63,9 +79,18 @@ class MailViewModel(
         list.firstOrNull { it.id == id }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val messages: StateFlow<List<MessageEntity>> = selectedFolderId
+    /** Everything cached for the open folder, before the category chip narrows it. */
+    private val folderMessages: Flow<List<MessageEntity>> = selectedFolderId
         .flatMapLatest { id ->
             if (id == null) flowOf(emptyList()) else mailRepository.observeMessages(id)
+        }
+
+    val messages: StateFlow<List<MessageEntity>> = folderMessages
+        // Filtering the cached page locally keeps the chips instant; re-querying the server
+        // with ?category= would reset pagination on every tap.
+        .combine(_selectedCategory) { list, category ->
+            val wanted = category.apiValue ?: return@combine list
+            list.filter { it.iaCategory == wanted }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -77,11 +102,85 @@ class MailViewModel(
         id != null && id in set
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    private val _quota = MutableStateFlow<QuotaDto?>(null)
+    val quota: StateFlow<QuotaDto?> = _quota.asStateFlow()
+
+    /**
+     * Badge on the drawer's "Recordatorios" entry (§4.19) — the reminders still pending.
+     *
+     * Done ones are excluded even though the list screen keeps showing them struck through: a
+     * badge is what is left to deal with, and one that never returned to zero after finishing
+     * everything would just be noise.
+     */
+    private val _followupCount = MutableStateFlow(0)
+    val followupCount: StateFlow<Int> = _followupCount.asStateFlow()
+
+    /** Cheap enough to re-ask every time the drawer opens, which is when the badge is read. */
+    fun refreshFollowupCount() {
+        viewModelScope.launch {
+            // A decoration like the quota: it must never fail the screen, and a lost call
+            // leaves the previous number rather than blanking it to a wrong zero.
+            runCatching { mailRepository.followups().items.count { !it.isDone } }
+                .onSuccess { _followupCount.value = it }
+        }
+    }
+
+    /**
+     * Badge count per category chip, counted over the very list the chip filters.
+     *
+     * `GET /category-counts` (§4.17) looks like the right source but answers for the whole
+     * mailbox even when asked for one folder — it reported `Urgente=1` while the open INBOX
+     * held no urgent message at all, so the chip advertised one and opened empty. Counting
+     * what is on screen can never disagree with what tapping shows.
+     */
+    val categoryCounts: StateFlow<Map<String, Int>> = folderMessages
+        .map { list ->
+            list.mapNotNull { it.iaCategory }
+                .groupingBy { it }
+                .eachCount()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Grants on the folder whose share sheet is open (§4.20). */
+    private val _shares = MutableStateFlow<List<FolderShareDto>>(emptyList())
+    val shares: StateFlow<List<FolderShareDto>> = _shares.asStateFlow()
+
+    private val _sharesLoading = MutableStateFlow(false)
+    val sharesLoading: StateFlow<Boolean> = _sharesLoading.asStateFlow()
+
+    fun loadShares(folder: FolderEntity) {
+        viewModelScope.launch {
+            _sharesLoading.value = true
+            _shares.value = emptyList()
+            try {
+                _shares.value = mailRepository.folderShares(folder)
+            } catch (e: Exception) {
+                _error.update { authRepository.describeFailure(e) }
+            } finally {
+                _sharesLoading.value = false
+            }
+        }
+    }
+
+    /** Granting reaches another person's mailbox, so failures must be visible, not silent. */
+    fun shareFolder(folder: FolderEntity, grantee: String, canWrite: Boolean) = runAction {
+        mailRepository.shareFolder(folder, grantee, canWrite)
+        _shares.value = mailRepository.folderShares(folder)
+    }
+
+    fun revokeShare(folder: FolderEntity, grantee: String) = runAction {
+        mailRepository.unshareFolder(folder, grantee)
+        _shares.value = mailRepository.folderShares(folder)
+    }
+
     private var topSyncJob: Job? = null
     private var olderSyncJob: Job? = null
 
     init {
         viewModelScope.launch { bootstrap() }
+        // A decoration: it loads on its own and never blocks or fails the screen.
+        viewModelScope.launch { _quota.value = mailRepository.quota() }
+        refreshFollowupCount()
         // Auto-select INBOX once folders are available, but don't override user selection.
         viewModelScope.launch {
             folders.filter { it.isNotEmpty() }.first().also { list ->
@@ -95,15 +194,13 @@ class MailViewModel(
 
     private suspend fun bootstrap() {
         try {
-            val email = authRepository.currentCredentials()?.email ?: return
+            val email = authRepository.currentEmail() ?: return
             _userEmail.value = email
             val id = mailRepository.ensureAccount(email)
             accountId.value = id
             mailRepository.syncFolders(id)
-        } catch (e: AuthenticationFailedException) {
-            authRepository.signOut()
         } catch (e: Exception) {
-            _error.update { e.message ?: e::class.java.simpleName }
+            _error.update { authRepository.describeFailure(e) }
         }
     }
 
@@ -119,15 +216,67 @@ class MailViewModel(
         triggerTopSync(folderId, isRefresh = true)
     }
 
+    /**
+     * A list row is a thread, so deleting from the list must take the whole thread with it —
+     * the visible uid is only its representative (§4.4).
+     */
     fun deleteMessage(messageId: Long) {
         viewModelScope.launch {
             try {
-                mailRepository.deleteMessage(messageId)
-            } catch (e: AuthenticationFailedException) {
-                authRepository.signOut()
+                mailRepository.deleteThread(messageId)
             } catch (e: Exception) {
-                _error.update { e.message ?: e::class.java.simpleName }
+                _error.update { authRepository.describeFailure(e) }
             }
+        }
+    }
+
+    /** Marks every message of the conversation read in one call (§4.4). */
+    fun markThreadRead(messageId: Long) = runAction { mailRepository.markThreadRead(messageId) }
+
+    fun moveToFolder(messageId: Long, destination: FolderEntity) = runAction {
+        mailRepository.moveThread(messageId, destination.fullName)
+    }
+
+    fun markSpam(messageId: Long) = runAction { mailRepository.markSpam(messageId) }
+
+    fun setColor(messageId: Long, color: String?) = runAction {
+        mailRepository.setColor(messageId, color)
+    }
+
+    /** Pin / unpin (§4.6). The list query floats pinned messages to the top. */
+    fun togglePin(messageId: Long) = runAction {
+        mailRepository.toggleFlag(messageId)
+    }
+
+    fun createFolder(name: String) = runAction {
+        val id = accountId.value ?: return@runAction
+        mailRepository.createFolder(id, name)
+    }
+
+    fun renameFolder(folder: FolderEntity, newName: String) = runAction {
+        val id = accountId.value ?: return@runAction
+        mailRepository.renameFolder(id, folder.fullName, newName)
+    }
+
+    fun deleteFolder(folder: FolderEntity) = runAction {
+        val id = accountId.value ?: return@runAction
+        if (folder.id == selectedFolderId.value) {
+            folders.value.firstOrNull { it.kind == FolderKind.INBOX }?.let { selectFolder(it.id) }
+        }
+        mailRepository.deleteFolder(id, folder.fullName)
+    }
+
+    fun emptyFolder(folder: FolderEntity) = runAction { mailRepository.emptyFolder(folder) }
+
+    fun dismissError() {
+        _error.value = null
+    }
+
+    private fun runAction(block: suspend () -> Unit): Job = viewModelScope.launch {
+        try {
+            block()
+        } catch (e: Exception) {
+            _error.update { authRepository.describeFailure(e) }
         }
     }
 
@@ -136,10 +285,8 @@ class MailViewModel(
             try {
                 val msg = messages.value.find { it.id == messageId } ?: return@launch
                 mailRepository.markRead(messageId, !msg.seen)
-            } catch (e: AuthenticationFailedException) {
-                authRepository.signOut()
             } catch (e: Exception) {
-                _error.update { e.message ?: e::class.java.simpleName }
+                _error.update { authRepository.describeFailure(e) }
             }
         }
     }
@@ -148,22 +295,40 @@ class MailViewModel(
         val folderId = selectedFolderId.value ?: return
         if (_loadingOlder.value) return
         if (folderId in foldersExhausted.value) return
-        olderSyncJob?.cancel()
+        // Claim the slot synchronously: setting it inside the coroutine let a burst of
+        // scroll callbacks all pass the guard before the first one had started.
+        _loadingOlder.value = true
         olderSyncJob = viewModelScope.launch {
-            _loadingOlder.value = true
             try {
                 val folder = mailRepository.findFolder(folderId) ?: return@launch
-                val added = mailRepository.syncOlder(folder, limit = 50)
+                val added = mailRepository.syncOlder(folder)
                 if (added == 0) {
                     foldersExhausted.update { it + folderId }
                 }
-            } catch (e: AuthenticationFailedException) {
-                authRepository.signOut()
             } catch (e: Exception) {
-                _error.update { e.message ?: e::class.java.simpleName }
+                _error.update { authRepository.describeFailure(e) }
             } finally {
                 _loadingOlder.value = false
             }
+        }
+    }
+
+    /** Folders whose categories were already warmed this session — once each is enough. */
+    private val warmedCategoryFolders = mutableSetOf<Long>()
+
+    /**
+     * Fire-and-forget on its own job: it must survive [topSyncJob] being cancelled by a
+     * folder switch, and a failure only costs the badge accuracy it was going to add, so
+     * the user never sees an error for it — the folder is just allowed to try again.
+     */
+    private fun warmCategoryBadges(folder: FolderEntity) {
+        if (!warmedCategoryFolders.add(folder.id)) return
+        viewModelScope.launch {
+            val allOk = mailRepository.syncCategories(
+                folder,
+                MailCategory.entries.mapNotNull { it.apiValue },
+            )
+            if (!allOk) warmedCategoryFolders.remove(folder.id)
         }
     }
 
@@ -173,12 +338,24 @@ class MailViewModel(
             if (isRefresh) _refreshing.value = true
             try {
                 val folder = mailRepository.findFolder(folderId) ?: return@launch
-                mailRepository.syncFolderTop(folder, limit = 50)
+                if (isRefresh) {
+                    // Ask the backend to poll IMAP, then give it a moment before reading:
+                    // /sync queues the work and returns immediately (§4.13).
+                    mailRepository.requestServerSync(folder.fullName)
+                    delay(SYNC_SETTLE_MS)
+                }
+                mailRepository.syncFolderTop(folder)
                 foldersExhausted.update { it - folderId }
-            } catch (e: AuthenticationFailedException) {
-                authRepository.signOut()
+                accountId.value?.let { mailRepository.refreshFolderCounters(it) }
+                // The chip badges count cached rows, and the cache only holds the pages
+                // brought in so far — so every badge undercounted until its chip was tapped.
+                // Warm all categories in the background and the badges converge on their own.
+                warmCategoryBadges(folder)
+                // Bodies for the top of the list, so opening a message is instant and still
+                // works offline. Runs after the list is on screen and never blocks it.
+                mailRepository.preloadBodies(folder)
             } catch (e: Exception) {
-                _error.update { e.message ?: e::class.java.simpleName }
+                _error.update { authRepository.describeFailure(e) }
             } finally {
                 if (isRefresh) _refreshing.value = false
             }
@@ -186,6 +363,8 @@ class MailViewModel(
     }
 
     companion object {
+        private const val SYNC_SETTLE_MS = 1_200L
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = appContainer()

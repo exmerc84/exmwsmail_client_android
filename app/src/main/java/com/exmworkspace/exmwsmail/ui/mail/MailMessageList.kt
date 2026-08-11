@@ -1,7 +1,9 @@
 package com.exmworkspace.exmwsmail.ui.mail
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,6 +37,7 @@ import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -46,6 +50,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import com.exmworkspace.exmwsmail.R
 import androidx.compose.material3.CardDefaults
@@ -84,7 +89,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -99,6 +106,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.exmworkspace.exmwsmail.data.local.entity.FolderEntity
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
+import com.exmworkspace.exmwsmail.ui.components.SenderAvatar
 import com.exmworkspace.exmwsmail.data.mail.FolderKind
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -116,19 +124,37 @@ internal fun MessageList(
     onOpen: (Long) -> Unit,
     onDelete: (Long) -> Unit,
     onToggleRead: (Long) -> Unit,
+    onLongPress: (Long) -> Unit,
+    canWrite: Boolean = true,
 ) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 96.dp),
+        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(messages, key = { it.id }) { msg ->
+        // The query floats pinned messages to the top; without a label that just reads as a
+        // broken sort, so name both blocks — but only when there is actually a pin.
+        val pinnedCount = messages.count { it.flagged }
+        itemsIndexed(messages, key = { _, msg -> msg.id }) { index, msg ->
+            if (pinnedCount > 0 && (index == 0 || index == pinnedCount)) {
+                ListSectionHeader(
+                    text = stringResource(
+                        if (index == 0) R.string.pinned_section else R.string.other_section
+                    ),
+                    icon = if (index == 0) Icons.Default.PushPin else null,
+                )
+            }
             SwipeableMessageRow(
                 msg = msg,
                 onOpen = { onOpen(msg.id) },
                 onDelete = { onDelete(msg.id) },
                 onToggleRead = { onToggleRead(msg.id) },
+                onLongPress = { onLongPress(msg.id) },
+                canWrite = canWrite,
+                // Rows glide to their new position when a refresh reorders or removes them
+                // (delete, pin, new mail) instead of teleporting.
+                modifier = Modifier.animateItem(),
             )
         }
         if (loadingOlder) {
@@ -166,6 +192,10 @@ internal fun SwipeableMessageRow(
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     onToggleRead: () -> Unit,
+    onLongPress: () -> Unit = {},
+    /** False in a read-only shared folder: the backend answers 403 to any write (§4.20). */
+    canWrite: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -183,10 +213,25 @@ internal fun SwipeableMessageRow(
         },
         positionalThreshold = { totalDistance -> totalDistance * 0.5f },
     )
+    // A tick the finger can feel at the exact point the release changes meaning — the visual
+    // colour shift alone is under the user's own thumb half the time.
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(dismissState) {
+        snapshotFlow { dismissState.targetValue }
+            .distinctUntilChanged()
+            .collect { target ->
+                if (target != SwipeToDismissBoxValue.Settled) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+            }
+    }
     SwipeToDismissBox(
+        modifier = modifier,
         state = dismissState,
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = true,
+        // The overflow sheet already hides these actions here; letting the gesture through
+        // would just earn a 403 and, for delete, animate the row away before it failed.
+        enableDismissFromStartToEnd = canWrite,
+        enableDismissFromEndToStart = canWrite,
         backgroundContent = {
             val direction = dismissState.dismissDirection
             when (direction) {
@@ -256,32 +301,37 @@ internal fun SwipeableMessageRow(
             }
         },
     ) {
-        MessageRow(msg = msg, onClick = onOpen)
+        MessageRow(msg = msg, onClick = onOpen, onLongClick = onLongPress)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun MessageRow(msg: MessageEntity, onClick: () -> Unit) {
+internal fun MessageRow(
+    msg: MessageEntity,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+) {
     ElevatedCard(
-        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
     ) {
+    // The click handling lives on the inner Row, not on the card's own modifier: clipping
+    // there to host combinedClickable also clipped the shadow the card draws, flattening it.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .size(8.dp)
-                .background(
-                    color = if (!msg.seen) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surface,
-                    shape = CircleShape,
-                ),
+        // The colour flag takes over the unread badge when set — same corner, no extra slot.
+        val flagColor = MailColor.from(msg.color)?.swatch
+        SenderAvatar(
+            name = msg.from,
+            address = msg.fromAddress,
+            modifier = Modifier.padding(top = 2.dp),
+            badge = flagColor ?: MaterialTheme.colorScheme.primary.takeIf { !msg.seen },
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -320,18 +370,74 @@ internal fun MessageRow(msg: MessageEntity, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                if (msg.threadCount > 1) {
+                    Spacer(Modifier.width(6.dp))
+                    ThreadCountChip(msg.threadCount)
+                }
                 if (msg.flagged) {
                     Spacer(Modifier.width(4.dp))
                     Icon(
-                        imageVector = Icons.Default.Star,
+                        imageVector = Icons.Default.PushPin,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.tertiary,
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
+            // Third line: the opening of the body. Kept out of the row above so a long
+            // subject cannot eat into it — each gets its own full width.
+            val preview = msg.snippet?.trim().orEmpty()
+            if (preview.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = preview,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
+    }
+}
+
+@Composable
+private fun ListSectionHeader(text: String, icon: ImageVector?) {
+    Row(
+        modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** How many messages the conversation holds — the row stands for all of them (§4.4). */
+@Composable
+private fun ThreadCountChip(count: Int) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Text(
+            text = count.toString(),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

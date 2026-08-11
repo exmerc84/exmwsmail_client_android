@@ -14,6 +14,12 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments WHERE messageId = :messageId ORDER BY partIndex")
     suspend fun list(messageId: Long): List<AttachmentEntity>
 
+    @Query("SELECT * FROM attachments WHERE id = :id LIMIT 1")
+    suspend fun findById(id: Long): AttachmentEntity?
+
+    @Query("UPDATE attachments SET localPath = :path WHERE id = :id")
+    suspend fun updateLocalPath(id: Long, path: String)
+
     @Insert
     suspend fun insertAll(list: List<AttachmentEntity>)
 

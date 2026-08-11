@@ -16,19 +16,32 @@
     <string name="loading">Cargando…</string>
     <string name="end_reached">Has llegado al final</string>
 
-    <!-- Login -->
-    <string name="login_title">EXM WS Mail</string>
-    <string name="login_server">exmwsmail.exmworkspace.com</string>
-    <string name="login_email_label">Email</string>
+    <!-- Login — wording taken from the webmail so both clients say the same thing -->
+    <string name="brand_name">EXM WS Cloud</string>
+    <string name="brand_tagline">Correo Empresarial</string>
+    <string name="login_hero_title">Tu correo empresarial, seguro y profesional</string>
+    <string name="login_hero_body">Accede a tu correo corporativo desde cualquier lugar. Bandeja inteligente, búsqueda avanzada y contactos en una sola app.</string>
+    <string name="feature_secure">Seguro</string>
+    <string name="feature_secure_sub">Cifrado E2E</string>
+    <string name="feature_cloud">100%</string>
+    <string name="feature_cloud_sub">En la nube</string>
+    <string name="feature_multi">Multi</string>
+    <string name="feature_multi_sub">Dispositivo</string>
+    <string name="login_title">Iniciar sesión</string>
+    <string name="login_subtitle">Ingresa tus credenciales para acceder al correo</string>
+    <string name="login_email_label">Correo electrónico</string>
     <string name="login_email_placeholder">tu@correo.com</string>
     <string name="login_password_label">Contraseña</string>
     <string name="login_password_placeholder">••••••••</string>
-    <string name="login_button">Entrar</string>
+    <string name="login_submit">Iniciar Sesión</string>
+    <string name="login_footer">EXM WS Cloud · Correo empresarial seguro</string>
     <string name="login_show_password">Mostrar contraseña</string>
     <string name="login_hide_password">Ocultar contraseña</string>
 
     <!-- Mail List -->
     <string name="folders_title">Carpetas</string>
+    <string name="storage">Almacenamiento</string>
+    <string name="storage_usage">%1$s de %2$s</string>
     <string name="no_messages">No hay mensajes en esta carpeta</string>
     <string name="unknown_sender">(remitente desconocido)</string>
     <string name="no_subject">(sin asunto)</string>
@@ -45,6 +58,7 @@
     <string name="bcc_label">Cco:</string>
     <string name="from_label">De:</string>
     <string name="subject_label">Asunto:</string>
+    <string name="compose_body_hint">Escribe tu mensaje…</string>
     <string name="body_placeholder">Escribe tu mensaje…</string>
     <string name="add_recipient">Añadir destinatario</string>
     <string name="add_cc">Añadir copia (Cc)</string>
@@ -52,6 +66,9 @@
     <string name="remove_recipient">Eliminar destinatario</string>
     <string name="format_title">Formato</string>
     <string name="attach_file">Adjuntar archivo</string>
+    <string name="attach_photo">Foto o video</string>
+    <string name="attach_document">Documento</string>
+    <string name="attach_files_hint">Se abre el explorador del sistema; vuelve con el gesto de retroceso.</string>
     <string name="original_message">Mensaje original</string>
     <string name="remove_quote">Quitar mensaje original</string>
     <string name="style_bold">Negrita</string>
@@ -72,9 +89,146 @@
     <string name="cat_unread">No leídos</string>
     <string name="cat_starred">Destacados</string>
     <string name="cat_personal">Personal</string>
-    <string name="cat_shopping">Compras</string>
-    <string name="cat_messages">Mensajes</string>
+    <string name="cat_commercial">Comercial</string>
+    <string name="cat_social">Social</string>
     <string name="cat_notifications">Notificaciones</string>
+    <string name="cat_transactional">Transaccional</string>
+    <string name="cat_urgent">Urgente</string>
+
+    <!-- Contacts -->
+    <string name="mail_module">Correo</string>
+    <string name="contacts">Contactos</string>
+    <string name="calendar">Calendario</string>
+    <string name="notes">Notas</string>
+    <string name="tasks">Tareas</string>
+    <string name="passwords">Contraseñas</string>
+    <string name="contacts_personal">Mis contactos</string>
+    <string name="contacts_corporate">Directorio</string>
+    <string name="contact_search_hint">Nombre, correo o empresa</string>
+    <string name="contacts_counts">%1$d contactos · %2$d favoritos</string>
+    <string name="contacts_count_only">%1$d contactos</string>
+    <string name="no_contacts">No hay contactos</string>
+    <string name="import_contacts">Importar del historial</string>
+    <string name="favorite">Favorito</string>
+    <string name="delete_contact">Eliminar contacto</string>
+    <string name="delete_contact_confirm">Se eliminará «%1$s» de tu agenda.</string>
+    <string name="more_options">Más opciones</string>
+    <string name="new_contact">Nuevo contacto</string>
+    <string name="edit_contact">Editar contacto</string>
+    <string name="save">Guardar</string>
+    <string name="all_groups">Todos</string>
+    <string name="contact_email">Correo</string>
+    <string name="contact_name">Nombre</string>
+    <string name="contact_company">Empresa</string>
+    <string name="contact_job_title">Puesto</string>
+    <string name="contact_department">Departamento</string>
+    <string name="contact_phone">Teléfono</string>
+    <string name="contact_mobile">Móvil</string>
+    <string name="contact_website">Sitio web</string>
+    <string name="contact_notes">Notas</string>
+    <string name="contact_group">Grupo</string>
+    <string name="section_identity">Identidad</string>
+    <string name="section_organization">Organización</string>
+    <string name="section_reach">Cómo contactarlo</string>
+    <string name="no_group">Sin grupo</string>
+    <string name="new_group">Grupo nuevo</string>
+    <string name="new_group_hint">Nombre del grupo</string>
+    <string name="groups">Grupos</string>
+    <string name="manage_groups">Gestionar grupos</string>
+    <string name="edit_group">Editar grupo</string>
+    <string name="delete_group">Eliminar grupo</string>
+    <string name="delete_group_confirm">Se quitará «%1$s» de todos sus contactos. Los contactos no se eliminan.</string>
+    <string name="no_groups">Todavía no hay grupos</string>
+    <string name="group_name">Nombre</string>
+    <string name="group_name_hint">Clientes, Proveedores…</string>
+    <string name="group_domain">Dominio</string>
+    <string name="group_domain_hint">empresa.com</string>
+    <string name="group_color">Color</string>
+    <string name="group_members">%1$d contactos</string>
+    <string name="understood">Entendido</string>
+
+    <!-- Folder management -->
+    <string name="new_folder">Nueva carpeta</string>
+    <string name="folder_name">Nombre de la carpeta</string>
+    <string name="rename_folder">Renombrar carpeta</string>
+    <string name="empty_folder">Vaciar carpeta</string>
+    <string name="delete_folder">Eliminar carpeta</string>
+    <string name="delete_folder_confirm">Se eliminará «%1$s» y todo su contenido. Esta acción no se puede deshacer.</string>
+    <string name="empty_folder_confirm">Se eliminarán todos los mensajes de «%1$s». Esta acción no se puede deshacer.</string>
+    <string name="create">Crear</string>
+    <string name="rename">Renombrar</string>
+    <string name="empty">Vaciar</string>
+    <string name="system_folder_locked">Es una carpeta del sistema y no se puede renombrar ni eliminar.</string>
+    <string name="shared_readonly">Carpeta compartida de solo lectura.</string>
+    <string name="share_folder">Compartir carpeta</string>
+    <string name="share_with">Compartir con</string>
+    <string name="no_shares">No la has compartido con nadie</string>
+    <string name="permission_read">Solo lectura</string>
+    <string name="permission_write">Lectura y escritura</string>
+    <string name="grant_access">Dar acceso</string>
+    <string name="revoke_access">Quitar acceso</string>
+    <string name="unknown_grantee">(destinatario desconocido)</string>
+    <string name="access_granted">Acceso concedido a %1$s</string>
+    <string name="access_revoked">Acceso retirado</string>
+
+    <!-- Message actions -->
+    <string name="move_to_folder">Mover a…</string>
+    <string name="mark_spam">Marcar como spam</string>
+    <string name="mark_thread_read">Marcar conversación como leída</string>
+    <string name="flag_color">Bandera de color</string>
+    <string name="no_color">Sin color</string>
+    <string name="color_red">Rojo</string>
+    <string name="color_orange">Naranja</string>
+    <string name="color_green">Verde</string>
+    <string name="color_blue">Azul</string>
+    <string name="color_purple">Morado</string>
+    <string name="message_actions">Acciones del mensaje</string>
+
+    <!-- Followups (§4.19) -->
+    <string name="followups">Recordatorios</string>
+    <string name="remind_me">Recordarme</string>
+    <string name="followup_this_evening">Esta tarde</string>
+    <string name="followup_tomorrow">Mañana</string>
+    <string name="followup_next_week">La próxima semana</string>
+    <string name="followup_hint">Recibirás un correo de recordatorio a esa hora.</string>
+    <string name="followup_done">Marcar hecho</string>
+    <string name="followup_created">Recordatorio creado</string>
+    <string name="no_followups">No tienes recordatorios</string>
+
+    <!-- IA (§4.21) -->
+    <string name="ai_summary">Resumir</string>
+    <string name="ai_summary_title">Resumen del hilo</string>
+    <string name="ai_translate">Traducir</string>
+    <string name="ai_translate_title">Traducción</string>
+    <string name="ai_draft">Redactar con IA</string>
+    <string name="ai_draft_title">Propuestas</string>
+    <string name="ai_working">Pensando…</string>
+    <string name="ai_language">Idioma</string>
+    <string name="ai_use">Usar</string>
+    <string name="translated_notice">Traducido automáticamente</string>
+    <string name="show_original">Ver original</string>
+    <string name="translate_to">Traducir a</string>
+    <string name="translating_to">Traduciendo al %1$s…</string>
+    <string name="translated_to">Traducido al %1$s</string>
+    <string name="translate_wait">Puede tardar unos segundos</string>
+    <string name="lang_spanish">Español</string>
+    <string name="lang_english">Inglés</string>
+    <string name="lang_portuguese">Portugués</string>
+    <string name="lang_french">Francés</string>
+    <string name="lang_german">Alemán</string>
+    <string name="lang_italian">Italiano</string>
+
+    <!-- Threads -->
+    <string name="thread_title">Conversación</string>
+    <string name="thread_messages">%1$d mensajes</string>
+
+    <!-- Drafts -->
+    <string name="edit_draft">Borrador</string>
+    <string name="draft_saved">Borrador guardado</string>
+    <string name="discard_draft">Descartar borrador</string>
+    <string name="save_draft">Guardar borrador</string>
+    <string name="draft_discard_confirm">¿Quieres guardar este borrador antes de salir?</string>
+    <string name="discard">Descartar</string>
 
     <!-- Folders -->
     <string name="folder_inbox">Recibidos</string>
@@ -92,12 +246,28 @@
     <string name="back_button">Volver</string>
     <string name="reply">Responder</string>
     <string name="forward">Reenviar</string>
-    <string name="star">Destacar</string>
-    <string name="unstar">Quitar</string>
+    <string name="pin">Fijar</string>
+    <string name="unpin">No fijar</string>
+    <string name="pinned_section">Fijados</string>
+    <string name="other_section">Resto</string>
     <string name="mark_unread">No leído</string>
+    <string name="mark_read">Marcar como leído</string>
+    <string name="mark_unread_long">Marcar como no leído</string>
     <string name="no_content">Sin contenido</string>
     <string name="previous_message">Mensaje anterior</string>
     <string name="attachments_title">Adjuntos (%1$d)</string>
+    <string name="attachments">Adjuntos</string>
+    <string name="attachments_search_hint">Nombre de archivo, asunto o remitente</string>
+    <string name="no_attachments">No hay adjuntos</string>
+    <string name="today">Hoy</string>
+    <string name="yesterday">Ayer</string>
+    <string name="undated">Sin fecha</string>
+    <string name="save_to_cloud">Guardar en la nube</string>
+    <string name="saved_to_cloud">Guardado en EXMWS Cloud</string>
+    <string name="view_source">Ver original</string>
+    <string name="view_headers">Ver cabeceras</string>
+    <string name="copy">Copiar</string>
+    <string name="copied">Copiado</string>
     <string name="open_attachment">Abrir</string>
     <string name="open_with">Abrir adjunto</string>
     <string name="error_body">No se pudo descargar el cuerpo</string>

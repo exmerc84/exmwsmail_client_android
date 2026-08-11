@@ -9,6 +9,7 @@ import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
 import com.exmworkspace.exmwsmail.data.repository.AuthRepository
 import com.exmworkspace.exmwsmail.data.repository.MailRepository
 import com.exmworkspace.exmwsmail.ui.appContainer
+import com.exmworkspace.exmwsmail.ui.describeFailure
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +44,7 @@ class SearchViewModel(
 
     init {
         viewModelScope.launch {
-            val email = authRepository.currentCredentials()?.email ?: return@launch
+            val email = authRepository.currentEmail() ?: return@launch
             accountId.value = mailRepository.ensureAccount(email)
         }
     }
@@ -60,7 +61,7 @@ class SearchViewModel(
                 val added = mailRepository.searchOnServer(id, q)
                 _lastServerCount.value = added
             } catch (e: Exception) {
-                _serverError.value = e.message ?: e::class.java.simpleName
+                _serverError.value = authRepository.describeFailure(e)
             } finally {
                 _serverSearching.value = false
             }

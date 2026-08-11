@@ -2,113 +2,145 @@ package com.exmworkspace.exmwsmail.ui.theme
 
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 
-// Brand palette — indigo / slate / teal accent
-private val IndigoDeep = Color(0xFF2E3A6B)
-private val IndigoMid = Color(0xFF4A5BA0)
-private val IndigoSoft = Color(0xFFE3E8F4)
-private val SlateDeep = Color(0xFF38445C)
-private val SlateMid = Color(0xFF5C6B86)
-private val SlateSoft = Color(0xFFE6EAF1)
-private val Teal = Color(0xFF1F8C7E)
-private val TealSoft = Color(0xFFD7EFE9)
+// Palette lifted from the webmail's own stylesheet (webmail.exmworkspace.com/login) so the
+// app and the web client read as one product. It is Tailwind's indigo/slate ramp.
 
-private val NeutralBg = Color(0xFFFFFFFF)
-private val NeutralSurface = Color(0xFFFFFFFF)
-private val NeutralSurfaceLow = Color(0xFFFAFBFD)
-private val NeutralSurfaceMid = Color(0xFFF4F6FA)
-private val NeutralSurfaceHigh = Color(0xFFEDF0F5)
-private val NeutralSurfaceHighest = Color(0xFFE3E8EF)
-private val NeutralOnSurface = Color(0xFF101522)
-private val NeutralOnVariant = Color(0xFF55617A)
-private val NeutralOutline = Color(0xFFC8D0DC)
-private val NeutralOutlineVariant = Color(0xFFE6EAF1)
-private val ErrorRed = Color(0xFFB3261E)
-private val ErrorRedSoft = Color(0xFFF9DEDC)
+private val Indigo950 = Color(0xFF1E1B4B)
+private val Indigo900 = Color(0xFF312E81)
+private val Indigo800 = Color(0xFF3730A3)
+private val Indigo700 = Color(0xFF4338CA)
+private val Indigo600 = Color(0xFF4F46E5)
+private val Indigo500 = Color(0xFF6366F1)
+private val Indigo300 = Color(0xFFA5B4FC)
+private val Indigo200 = Color(0xFFC7D2FE)
+private val Indigo100 = Color(0xFFE0E7FF)
+private val Indigo50 = Color(0xFFEEF2FF)
 
-private val IndigoBright = Color(0xFFA8B6E5)
-private val IndigoDark = Color(0xFF1A2447)
-private val IndigoContainerDark = Color(0xFF2C3866)
-private val SlateBright = Color(0xFFB0BBD3)
-private val SlateContainerDark = Color(0xFF3A465F)
-private val TealBright = Color(0xFF6FD7C7)
-private val TealContainerDark = Color(0xFF1F4D45)
+private val Slate900 = Color(0xFF0F172A)
+private val Slate800 = Color(0xFF1E293B)
+private val Slate700 = Color(0xFF334155)
+private val Slate600 = Color(0xFF475569)
+private val Slate500 = Color(0xFF64748B)
+private val Slate400 = Color(0xFF94A3B8)
+private val Slate300 = Color(0xFFCBD5E1)
+private val Slate200 = Color(0xFFE2E8F0)
+private val Slate100 = Color(0xFFF1F5F9)
+private val Slate50 = Color(0xFFF8FAFC)
 
-private val DarkBg = Color(0xFF0E121A)
-private val DarkSurface = Color(0xFF161B26)
-private val DarkSurfaceLow = Color(0xFF1A2030)
-private val DarkSurfaceMid = Color(0xFF222937)
-private val DarkSurfaceHigh = Color(0xFF2A3242)
-private val DarkSurfaceHighest = Color(0xFF323B4D)
-private val DarkOnSurface = Color(0xFFE3E7EE)
-private val DarkOnVariant = Color(0xFFB0BAC9)
-private val DarkOutline = Color(0xFF3D475A)
-private val DarkOutlineVariant = Color(0xFF252C39)
-private val DarkErrorRed = Color(0xFFFFB4AB)
+private val Teal600 = Color(0xFF0D9488)
+private val Teal300 = Color(0xFF5EEAD4)
+private val Teal900 = Color(0xFF134E4A)
+private val Teal50 = Color(0xFFCCFBF1)
+
+private val ErrorRed = Color(0xFFDC2626)
+private val ErrorRedSoft = Color(0xFFFEE2E2)
+private val DarkErrorRed = Color(0xFFFCA5A5)
+
+/**
+ * Brand surfaces the Material scheme has no slot for: the gradients the webmail paints its
+ * hero panel and primary button with, and the blue-tinted input fill it uses on forms.
+ */
+object ExmBrand {
+    val heroStart = Indigo950
+    val heroMid = Indigo900
+    val heroEnd = Indigo700
+
+    /** 135° in CSS — top-left to bottom-right. */
+    fun heroGradient(widthPx: Float, heightPx: Float) = Brush.linearGradient(
+        colorStops = arrayOf(0f to heroStart, 0.4f to heroMid, 1f to heroEnd),
+        start = Offset.Zero,
+        end = Offset(widthPx, heightPx),
+    )
+
+    val buttonGradient = Brush.linearGradient(listOf(Indigo500, Indigo600))
+    val buttonDisabled = Brush.linearGradient(listOf(Slate300, Slate400))
+
+    /** The webmail's form fields sit on a light blue, not on plain white. */
+    val fieldFill = Color(0xFFE8F0FE)
+    val fieldFillDark = Color(0xFF1E2438)
+    val fieldBorder = Slate200
+
+    val onHero = Color.White
+    val onHeroMuted = Indigo200
+    val heroCard = Color.White.copy(alpha = 0.08f)
+    val heroCardBorder = Color.White.copy(alpha = 0.14f)
+}
 
 val LightExmColors = lightColorScheme(
-    primary = IndigoDeep,
+    primary = Indigo600,
     onPrimary = Color.White,
-    primaryContainer = IndigoSoft,
-    onPrimaryContainer = IndigoDeep,
-    secondary = SlateDeep,
+    // The containers back avatars, chips and selected rows — things that repeat down a whole
+    // screen. Tinted, they turn a list violet; indigo is kept for what actually acts:
+    // buttons, the compose button, links, unread dots, the pin.
+    primaryContainer = Slate200,
+    onPrimaryContainer = Slate700,
+    secondary = Slate700,
     onSecondary = Color.White,
-    secondaryContainer = SlateSoft,
-    onSecondaryContainer = SlateDeep,
-    tertiary = Teal,
+    secondaryContainer = Slate200,
+    onSecondaryContainer = Slate900,
+    tertiary = Teal600,
     onTertiary = Color.White,
-    tertiaryContainer = TealSoft,
-    onTertiaryContainer = Teal,
-    background = NeutralBg,
-    onBackground = NeutralOnSurface,
-    surface = NeutralSurface,
-    onSurface = NeutralOnSurface,
-    surfaceVariant = NeutralSurfaceMid,
-    onSurfaceVariant = NeutralOnVariant,
-    surfaceTint = IndigoMid,
-    surfaceContainerLowest = NeutralSurface,
-    surfaceContainerLow = NeutralSurfaceLow,
-    surfaceContainer = NeutralSurfaceMid,
-    surfaceContainerHigh = NeutralSurfaceHigh,
-    surfaceContainerHighest = NeutralSurfaceHighest,
-    outline = NeutralOutline,
-    outlineVariant = NeutralOutlineVariant,
+    tertiaryContainer = Teal50,
+    onTertiaryContainer = Teal900,
+    background = Slate100,
+    onBackground = Slate900,
+    surface = Color.White,
+    onSurface = Slate900,
+    surfaceVariant = Slate100,
+    onSurfaceVariant = Slate500,
+    // Material blends surfaceTint over every elevated surface in proportion to its elevation,
+    // so a coloured tint here washes every card in the app violet. Setting it to the surface
+    // colour makes that blend a no-op: cards stay white and read their depth from the shadow.
+    // It must NOT be Color.Transparent — that is black with alpha 0, and Material re-applies
+    // its own alpha to it, which paints translucent black and darkens the card to grey.
+    surfaceTint = Color.White,
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Slate50,
+    surfaceContainer = Slate100,
+    surfaceContainerHigh = Color(0xFFE9EEF6),
+    surfaceContainerHighest = Slate200,
+    outline = Slate300,
+    outlineVariant = Slate200,
     error = ErrorRed,
     onError = Color.White,
     errorContainer = ErrorRedSoft,
-    onErrorContainer = ErrorRed,
+    onErrorContainer = Color(0xFF7F1D1D),
 )
 
 val DarkExmColors = darkColorScheme(
-    primary = IndigoBright,
-    onPrimary = IndigoDark,
-    primaryContainer = IndigoContainerDark,
-    onPrimaryContainer = IndigoSoft,
-    secondary = SlateBright,
-    onSecondary = SlateDeep,
-    secondaryContainer = SlateContainerDark,
-    onSecondaryContainer = SlateSoft,
-    tertiary = TealBright,
-    onTertiary = Color(0xFF093C36),
-    tertiaryContainer = TealContainerDark,
-    onTertiaryContainer = TealSoft,
-    background = DarkBg,
-    onBackground = DarkOnSurface,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
-    surfaceVariant = DarkSurfaceMid,
-    onSurfaceVariant = DarkOnVariant,
-    surfaceTint = IndigoBright,
-    surfaceContainerLowest = DarkBg,
-    surfaceContainerLow = DarkSurfaceLow,
-    surfaceContainer = DarkSurfaceMid,
-    surfaceContainerHigh = DarkSurfaceHigh,
-    surfaceContainerHighest = DarkSurfaceHighest,
-    outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant,
+    primary = Indigo300,
+    onPrimary = Indigo950,
+    primaryContainer = Color(0xFF2F3750),
+    onPrimaryContainer = Slate100,
+    secondary = Slate300,
+    onSecondary = Slate900,
+    secondaryContainer = Color(0xFF283047),
+    onSecondaryContainer = Indigo100,
+    tertiary = Teal300,
+    onTertiary = Teal900,
+    tertiaryContainer = Teal900,
+    onTertiaryContainer = Teal50,
+    background = Color(0xFF0B1020),
+    onBackground = Slate100,
+    surface = Color(0xFF141A2E),
+    onSurface = Slate100,
+    surfaceVariant = Color(0xFF1E2438),
+    onSurfaceVariant = Slate400,
+    // Same no-op trick as the light scheme: match the surface, never Color.Transparent.
+    surfaceTint = Color(0xFF141A2E),
+    surfaceContainerLowest = Color(0xFF0B1020),
+    surfaceContainerLow = Color(0xFF161C31),
+    surfaceContainer = Color(0xFF1E2438),
+    surfaceContainerHigh = Color(0xFF262D44),
+    surfaceContainerHighest = Color(0xFF2F3750),
+    outline = Color(0xFF475069),
+    outlineVariant = Color(0xFF2A3149),
     error = DarkErrorRed,
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
+    onError = Color(0xFF450A0A),
+    errorContainer = Color(0xFF7F1D1D),
+    onErrorContainer = ErrorRedSoft,
 )

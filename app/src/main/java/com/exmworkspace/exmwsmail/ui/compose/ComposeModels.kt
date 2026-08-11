@@ -77,6 +77,16 @@ data class ComposeUiState(
     val sent: Boolean = false,
     val error: String? = null,
     val attachments: List<FileAttachment> = emptyList(),
-)
+    val savingDraft: Boolean = false,
+    /** Set once the draft has been persisted server-side at least once. */
+    val draftSaved: Boolean = false,
+    val discarded: Boolean = false,
+) {
+    /** Nothing worth persisting yet — avoids creating an empty draft on every composer open. */
+    val isEmpty: Boolean
+        get() = to.isEmpty() && cc.isEmpty() && bcc.isEmpty() &&
+            toDraft.isBlank() && ccDraft.isBlank() && bccDraft.isBlank() &&
+            subject.isBlank() && body.text.isBlank() && attachments.isEmpty()
+}
 
-enum class ComposeMode { NEW, REPLY, FORWARD }
+enum class ComposeMode { NEW, REPLY, FORWARD, DRAFT }

@@ -20,11 +20,16 @@ import androidx.room.PrimaryKey
 data class AttachmentEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val messageId: Long,
+    /** The API's attachment `index` within the message. */
     val partIndex: Int,
     val filename: String,
     val mimeType: String,
     val sizeBytes: Long,
-    val inline: Boolean,
-    val contentId: String?,
-    val localPath: String,
+    val inline: Boolean = false,
+    val contentId: String? = null,
+    /**
+     * Null until downloaded. The API returns only metadata, so bytes are fetched on demand
+     * instead of riding along with the body as they did over IMAP.
+     */
+    val localPath: String? = null,
 )

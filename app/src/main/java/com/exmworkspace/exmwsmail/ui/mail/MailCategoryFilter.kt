@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,10 +111,14 @@ import kotlinx.coroutines.launch
 internal fun CategoryFilterRow(
     selected: MailCategory,
     onSelect: (MailCategory) -> Unit,
+    /** Threads per category (§4.17), keyed by the API's own category strings. */
+    counts: Map<String, Int> = emptyMap(),
 ) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        // The badge overhangs the chip's top-right corner, so the row needs room for it or
+        // it gets clipped against the category strip.
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(MailCategory.entries.toList(), key = { it.name }) { cat ->
@@ -121,6 +126,9 @@ internal fun CategoryFilterRow(
                 category = cat,
                 isSelected = selected == cat,
                 onClick = { onSelect(cat) },
+                // Only the categories the API actually reports. "Todo" gets no badge: summing
+                // the rest would be a number this app invented, not one the backend gave.
+                count = cat.apiValue?.let { counts[it] },
             )
         }
     }
@@ -131,6 +139,7 @@ internal fun CategoryChip(
     category: MailCategory,
     isSelected: Boolean,
     onClick: () -> Unit,
+    count: Int? = null,
 ) {
     if (isSelected) {
         Surface(
@@ -157,26 +166,53 @@ internal fun CategoryChip(
                     text = stringResource(category.labelResId),
                     style = MaterialTheme.typography.labelLarge,
                 )
+                if (count != null && count > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = count.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     } else {
-        Surface(
-            onClick = onClick,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            tonalElevation = 1.dp,
-            modifier = Modifier.size(40.dp),
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
+        // The collapsed chip is only an icon, so the count rides as a badge on its corner.
+        Box {
+            Surface(
+                onClick = onClick,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 1.dp,
+                modifier = Modifier.size(40.dp),
             ) {
-                Icon(
-                    imageVector = category.icon,
-                    contentDescription = stringResource(category.labelResId),
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = category.icon,
+                        contentDescription = stringResource(category.labelResId),
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (count != null && count > 0) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 6.dp, y = (-6).dp),
+                ) {
+                    Text(
+                        text = if (count > 99) "99+" else count.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
             }
         }
     }
