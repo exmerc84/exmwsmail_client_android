@@ -23,16 +23,17 @@ class DeviceRegistrar(
 ) {
 
     /**
-     * @param force re-register even if the token has not changed (used from `onNewToken`).
+     * Registers unconditionally: the POST is an upsert keyed by token, it keeps
+     * `last_seen_at` current, and — decisively — it heals a registration the server no
+     * longer has. An "already registered" skip once left this device silently push-less
+     * after the backend cleaned its device rows: the app's local flag said registered,
+     * the server's table said nothing.
      */
-    suspend fun register(force: Boolean = false) = withContext(Dispatchers.IO) {
+    suspend fun register() = withContext(Dispatchers.IO) {
         if (tokenStore.accessToken == null) return@withContext
         val fcmToken = currentFcmToken() ?: run {
             // No google-services.json, or Play Services missing on this device.
             AppLog.w(TAG, "no FCM token available — push disabled")
-            return@withContext
-        }
-        if (!force && fcmToken == tokenStore.registeredFcmToken && tokenStore.deviceId != null) {
             return@withContext
         }
         runCatching {
