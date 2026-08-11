@@ -8,6 +8,7 @@ import com.exmworkspace.exmwsmail.data.repository.AuthRepository
 import com.exmworkspace.exmwsmail.data.repository.ContactsRepository
 import com.exmworkspace.exmwsmail.data.repository.MailRepository
 import com.exmworkspace.exmwsmail.service.DeviceRegistrar
+import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.OkHttpClient
 import java.io.File
 
@@ -46,4 +47,17 @@ class AppContainer(context: Context) {
         tokenStore = tokenStore,
         mailApi = network.mailApi,
     )
+
+    /**
+     * The message a tapped notification asked for, waiting to be opened.
+     *
+     * It lands here rather than going straight to the navigator because the activity receives
+     * the intent before the nav graph exists — and on a warm start it arrives through
+     * `onNewIntent`, when the graph is already up. A flow lets both cases be handled the same
+     * way: the activity posts, the navigator consumes when it can.
+     */
+    val pendingNotification = MutableStateFlow<NotificationTarget?>(null)
 }
+
+/** The (folder, uid) pair an FCM notification carries — the API's own way to name a message. */
+data class NotificationTarget(val folder: String, val uid: String)

@@ -109,6 +109,25 @@ class MailRepository(
     suspend fun findMessageByUid(folder: FolderEntity, uid: String): MessageEntity? =
         messageDao.findByUid(folder.id, uid)
 
+    /**
+     * Resolves the (folder, uid) a notification names into the local row id the navigator
+     * opens, or null when it cannot be found.
+     *
+     * Syncs the folder once if the message is not cached: a notification can arrive for mail
+     * the app has never listed — a cold start straight from the notification shade is exactly
+     * that case — and refusing to open it because the cache is empty would defeat the tap.
+     */
+    suspend fun findMessageIdForNotification(
+        accountId: Long,
+        folderFullName: String,
+        uid: String,
+    ): Long? = withContext(Dispatchers.IO) {
+        val folder = folderDao.findByFullName(accountId, folderFullName) ?: return@withContext null
+        messageDao.findByUid(folder.id, uid)?.let { return@withContext it.id }
+        runCatching { syncFolderTop(folder) }
+        messageDao.findByUid(folder.id, uid)?.id
+    }
+
     suspend fun ensureAccount(email: String): Long {
         accountDao.findByEmail(email)?.let { return it.id }
         val id = accountDao.insert(AccountEntity(email = email))

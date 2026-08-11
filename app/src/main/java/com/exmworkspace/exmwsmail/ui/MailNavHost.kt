@@ -7,11 +7,16 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.exmworkspace.exmwsmail.di.NotificationTarget
+import kotlinx.coroutines.flow.filterNotNull
 import com.exmworkspace.exmwsmail.ui.attachments.AttachmentsScreen
 import com.exmworkspace.exmwsmail.ui.compose.ComposeScreen
 import com.exmworkspace.exmwsmail.ui.followups.FollowupsScreen
@@ -47,9 +52,49 @@ private const val ARG_COMPOSE_TO = "to"
 /** One shared duration keeps every screen change feeling like the same app. */
 private const val NAV_MS = 260
 
+/**
+ * Opens the message a tapped notification named (§3 carries `folder` and `uid`).
+ *
+ * The notification cannot name the local row id — that is the app's own key — so the pair is
+ * resolved here, syncing the folder if the message was never listed. Tapping used to just
+ * raise the app and leave the user on the list, because the activity never read the extras
+ * it had been putting on the intent all along.
+ *
+ * The target is cleared before navigating, so a failed lookup does not retry forever and a
+ * recomposition cannot open the same message twice.
+ */
+@Composable
+private fun OpenNotificationTarget(navController: NavHostController) {
+    // The Context accessor, not the CreationExtras one — that extension only exists inside a
+    // ViewModel factory initializer.
+    val container = LocalContext.current.mailContainer()
+
+    // Keyed on Unit and collecting, not keyed on the value: clearing the target inside an
+    // effect keyed on that same target changed the key, so Compose restarted the block and
+    // cancelled the lookup mid-flight — the app opened and simply stayed on the list.
+    // `filterNotNull` swallows the clearing emission instead of tearing the collector down.
+    LaunchedEffect(Unit) {
+        container.pendingNotification.filterNotNull().collect { pending ->
+            container.pendingNotification.value = null
+            val email = container.authRepository.activeMailEmail() ?: return@collect
+            val accountId = runCatching { container.mailRepository.ensureAccount(email) }
+                .getOrNull() ?: return@collect
+            val messageId = runCatching {
+                container.mailRepository.findMessageIdForNotification(
+                    accountId = accountId,
+                    folderFullName = pending.folder,
+                    uid = pending.uid,
+                )
+            }.getOrNull() ?: return@collect
+            navController.navigate("message/$messageId")
+        }
+    }
+}
+
 @Composable
 fun MailNavHost(onSignOut: () -> Unit) {
     val navController = rememberNavController()
+    OpenNotificationTarget(navController)
     NavHost(
         navController = navController,
         startDestination = ROUTE_MAIL,

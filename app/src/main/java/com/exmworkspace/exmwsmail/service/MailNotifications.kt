@@ -18,6 +18,18 @@ object MailNotifications {
     const val EXTRA_UID = "notification_uid"
     private const val NEW_NOTIFICATION_ID = 200
 
+    /**
+     * Clears the new-mail notification.
+     *
+     * Called when the app comes to the foreground, not only when the notification is tapped:
+     * on Samsung the launcher badge counts active notifications, so one left behind kept a
+     * red dot on the icon after the mail had already been read. `setAutoCancel` only covers
+     * the tap; opening the app any other way left it sitting in the shade.
+     */
+    fun cancelNewMail(context: Context) {
+        NotificationManagerCompat.from(context).cancel(NEW_NOTIFICATION_ID)
+    }
+
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (nm.getNotificationChannel(CHANNEL_NEW) == null) {
