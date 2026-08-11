@@ -1,6 +1,8 @@
 package com.exmworkspace.exmwsmail.ui.mail
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,12 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -45,7 +45,7 @@ import com.exmworkspace.exmwsmail.ui.components.SenderAvatar
  * and baja. Switching re-points every mail surface through the `X-Account-Id` header; the
  * primary is the login identity, so it can neither carry a header nor be deleted.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun AccountSwitcherSheet(
     accounts: List<RemoteAccountDto>,
@@ -98,10 +98,17 @@ internal fun AccountSwitcherSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            onSelect(if (isPrimary) null else account)
-                            onDismiss()
-                        }
+                        // Delete lives behind a long-press, like folder management: a
+                        // standing trash button next to a switch tap invited accidents.
+                        .combinedClickable(
+                            onClick = {
+                                onSelect(if (isPrimary) null else account)
+                                onDismiss()
+                            },
+                            onLongClick = if (isPrimary) null else {
+                                { confirmDelete = account }
+                            },
+                        )
                         .padding(horizontal = 24.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -139,14 +146,6 @@ internal fun AccountSwitcherSheet(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp),
                         )
-                    } else if (!isPrimary) {
-                        IconButton(onClick = { confirmDelete = account }) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = stringResource(R.string.account_delete),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
                     }
                 }
             }
