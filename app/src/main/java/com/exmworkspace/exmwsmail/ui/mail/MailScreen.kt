@@ -499,8 +499,6 @@ fun MailScreen(
             accounts = accounts,
             activeServerId = activeAccount?.serverId,
             onSelect = viewModel::switchAccount,
-            onAdd = viewModel::addAccount,
-            onDelete = viewModel::deleteAccount,
             onDismiss = { showAccounts = false },
         )
     }

@@ -13,7 +13,6 @@ import com.exmworkspace.exmwsmail.data.local.entity.MessageBodyEntity
 import com.exmworkspace.exmwsmail.data.local.entity.MessageEntity
 import com.exmworkspace.exmwsmail.data.mail.FolderKind
 import com.exmworkspace.exmwsmail.data.mail.stripImapFetchPreamble
-import com.exmworkspace.exmwsmail.data.remote.dto.AccountCreateRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftOptionDto
 import com.exmworkspace.exmwsmail.data.remote.dto.AiDraftRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.AiMessageDto
@@ -848,24 +847,12 @@ class MailRepository(
 
     // ---- Accounts (§4.23) ----
 
-    /** The user's mailboxes — primary plus auxiliaries. */
+    /**
+     * The user's mailboxes — primary plus auxiliaries. Read-only: alta and baja happen
+     * server-side, so `POST`/`DELETE /api/accounts` are deliberately not wired.
+     */
     suspend fun remoteAccounts(): List<RemoteAccountDto> = withContext(Dispatchers.IO) {
         api.accounts().requireBody()
-    }
-
-    suspend fun addRemoteAccount(email: String, password: String, displayName: String?) =
-        withContext(Dispatchers.IO) {
-            api.addAccount(
-                AccountCreateRequest(
-                    email = email,
-                    password = password,
-                    displayName = displayName?.takeIf { it.isNotBlank() },
-                )
-            ).requireBody()
-        }
-
-    suspend fun deleteRemoteAccount(id: Long) = withContext(Dispatchers.IO) {
-        api.deleteAccount(id).requireSuccess()
     }
 
     // ---- Followups (§4.19) ----

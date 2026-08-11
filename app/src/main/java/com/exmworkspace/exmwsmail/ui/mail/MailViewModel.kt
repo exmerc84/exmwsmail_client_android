@@ -223,7 +223,10 @@ class MailViewModel(
         viewModelScope.launch {
             // Decorative like the quota: a failed load keeps the previous list.
             runCatching { mailRepository.remoteAccounts() }
-                .onSuccess { _accounts.value = it }
+                .onSuccess {
+                    _accounts.value = it
+                    dropActiveAccountIfGone(it)
+                }
         }
     }
 
@@ -251,28 +254,14 @@ class MailViewModel(
         }
     }
 
-    fun addAccount(email: String, password: String, displayName: String?) {
-        viewModelScope.launch {
-            try {
-                mailRepository.addRemoteAccount(email, password, displayName)
-                refreshAccounts()
-            } catch (e: Exception) {
-                _error.update { authRepository.describeFailure(e) }
-            }
-        }
-    }
-
-    fun deleteAccount(account: RemoteAccountDto) {
-        viewModelScope.launch {
-            try {
-                mailRepository.deleteRemoteAccount(account.id)
-                // Standing in the mailbox that was just removed → fall back to primary.
-                if (activeAccount.value?.serverId == account.id) switchAccount(null)
-                refreshAccounts()
-            } catch (e: Exception) {
-                _error.update { authRepository.describeFailure(e) }
-            }
-        }
+    /**
+     * Mailboxes are provisioned server-side, so the app only reads the list — but it must
+     * survive one disappearing: standing in a mailbox the server no longer lists would keep
+     * stamping a dead `X-Account-Id` on every request.
+     */
+    private fun dropActiveAccountIfGone(list: List<RemoteAccountDto>) {
+        val active = activeAccount.value ?: return
+        if (list.none { it.id == active.serverId }) switchAccount(null)
     }
 
     fun selectFolder(folderId: Long) {

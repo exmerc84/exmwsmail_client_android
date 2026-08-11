@@ -63,13 +63,6 @@
     <!-- Accounts (§4.23) -->
     <string name="accounts_title">Cuentas</string>
     <string name="account_primary">Principal · %1$s</string>
-    <string name="account_add">Agregar cuenta</string>
-    <string name="account_add_hint">Buzón IMAP adicional. Se agrega en el servidor y estará disponible en todos tus dispositivos.</string>
-    <string name="account_email_hint">Correo</string>
-    <string name="account_password_hint">Contraseña</string>
-    <string name="account_name_hint">Nombre (opcional)</string>
-    <string name="account_delete">Eliminar cuenta</string>
-    <string name="account_delete_confirm">¿Eliminar el buzón %1$s? Solo se quita de tu usuario; el buzón y su correo no se tocan.</string>
     <string name="body_placeholder">Escribe tu mensaje…</string>
     <string name="add_recipient">Añadir destinatario</string>
     <string name="add_cc">Añadir copia (Cc)</string>
