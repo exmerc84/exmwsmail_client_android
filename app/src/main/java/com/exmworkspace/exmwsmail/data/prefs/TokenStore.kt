@@ -90,6 +90,31 @@ class TokenStore(context: Context) : TokenSession {
         _isLoggedIn.value = prefs.contains(KEY_REFRESH)
     }
 
+    /**
+     * The auxiliary mailbox the UI is standing in (§4.23), or null for the primary account.
+     * Persisted so a restart reopens the same mailbox; the synchronous getter is for the
+     * OkHttp interceptor that stamps `X-Account-Id` on mail requests.
+     */
+    private val _activeAccount = MutableStateFlow(readActiveAccount())
+    val activeAccount: StateFlow<ActiveAccount?> = _activeAccount.asStateFlow()
+
+    val activeAccountServerId: Long?
+        get() = prefs.getLong(KEY_ACTIVE_ACCOUNT_ID, -1L).takeIf { it >= 0 }
+
+    fun setActiveAccount(account: ActiveAccount?) {
+        prefs.edit()
+            .putLong(KEY_ACTIVE_ACCOUNT_ID, account?.serverId ?: -1L)
+            .putString(KEY_ACTIVE_ACCOUNT_EMAIL, account?.email)
+            .commit()
+        _activeAccount.value = account
+    }
+
+    private fun readActiveAccount(): ActiveAccount? {
+        val id = prefs.getLong(KEY_ACTIVE_ACCOUNT_ID, -1L).takeIf { it >= 0 } ?: return null
+        val email = prefs.getString(KEY_ACTIVE_ACCOUNT_EMAIL, null) ?: return null
+        return ActiveAccount(id, email)
+    }
+
     fun saveUser(email: String, displayName: String?) {
         val name = displayName?.trim().orEmpty()
         prefs.edit()
@@ -112,6 +137,7 @@ class TokenStore(context: Context) : TokenSession {
         _isLoggedIn.value = false
         _displayName.value = ""
         _email.value = null
+        _activeAccount.value = null
     }
 
     companion object {
@@ -123,6 +149,11 @@ class TokenStore(context: Context) : TokenSession {
         private const val KEY_DISPLAY_NAME = "display_name"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_FCM_TOKEN = "fcm_token"
+        private const val KEY_ACTIVE_ACCOUNT_ID = "active_account_id"
+        private const val KEY_ACTIVE_ACCOUNT_EMAIL = "active_account_email"
         private const val REFRESH_MARGIN_MS = 120_000L
     }
 }
+
+/** An auxiliary mailbox selected as active (§4.23). The primary account is `null`. */
+data class ActiveAccount(val serverId: Long, val email: String)

@@ -167,7 +167,7 @@ class ComposeViewModel(
 
     init {
         viewModelScope.launch {
-            _userEmail.value = authRepository.currentEmail()
+            _userEmail.value = authRepository.activeMailEmail()
             // Opened from a contact: start with them already in "To".
             savedStateHandle.get<String>("to")?.takeIf { it.isNotBlank() }?.let { address ->
                 _state.update { it.copy(to = listOf(address)) }

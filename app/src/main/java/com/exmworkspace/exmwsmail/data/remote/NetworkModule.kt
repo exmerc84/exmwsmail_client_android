@@ -53,6 +53,8 @@ class NetworkModule(tokenStore: TokenStore) {
         .writeTimeout(120, TimeUnit.SECONDS)
         .addInterceptor(HeadersInterceptor())
         .addInterceptor(AuthInterceptor(tokenStore, tokenRefresher))
+        // Scopes mail requests to the active auxiliary account (§4.23).
+        .addInterceptor(AccountHeaderInterceptor(tokenStore))
         // After auth (it only reads responses); repairs mis-encoded JSON before Retrofit.
         .addInterceptor(CharsetFallbackInterceptor())
         .addInterceptor(logging)

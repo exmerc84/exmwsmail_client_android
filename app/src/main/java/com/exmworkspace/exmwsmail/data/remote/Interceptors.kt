@@ -35,6 +35,32 @@ class HeadersInterceptor : Interceptor {
 }
 
 /**
+ * True for requests that §4.23 lets an auxiliary account scope with `X-Account-Id` — the
+ * mail endpoints. Contacts, followups and auth stay on the primary user: the doc grants the
+ * header to "endpoints de correo" only, and sending it wider would silently change what
+ * those endpoints answer.
+ */
+internal fun wantsAccountHeader(encodedPath: String): Boolean =
+    encodedPath.startsWith("/api/emails/")
+
+/**
+ * Stamps the active auxiliary account (§4.23) on mail requests. No header means the
+ * primary account, so the primary case adds nothing at all.
+ */
+class AccountHeaderInterceptor(private val tokenStore: TokenStore) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val accountId = tokenStore.activeAccountServerId
+        if (accountId == null || !wantsAccountHeader(request.url.encodedPath)) {
+            return chain.proceed(request)
+        }
+        return chain.proceed(
+            request.newBuilder().header("X-Account-Id", accountId.toString()).build()
+        )
+    }
+}
+
+/**
  * Re-decodes JSON responses whose bytes are not actually valid UTF-8 (see
  * [decodeUtf8OrWindows1252]). Runs on JSON only: attachment downloads and other binary
  * responses pass through untouched, and streaming stays intact for them because their body is

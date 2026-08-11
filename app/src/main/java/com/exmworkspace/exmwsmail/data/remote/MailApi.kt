@@ -7,7 +7,9 @@ import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareDto
 import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.FollowupCreateDto
 import com.exmworkspace.exmwsmail.data.remote.dto.FollowupDto
+import com.exmworkspace.exmwsmail.data.remote.dto.AccountCreateRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.FollowupListDto
+import com.exmworkspace.exmwsmail.data.remote.dto.RemoteAccountDto
 import com.exmworkspace.exmwsmail.data.remote.dto.FollowupUpdateDto
 import com.exmworkspace.exmwsmail.data.remote.dto.SummarizeRequest
 import com.exmworkspace.exmwsmail.data.remote.dto.SummaryDto
@@ -300,6 +302,17 @@ interface MailApi {
         @Query("client_draft_id") clientDraftId: String,
         @Query("uid") uid: String? = null,
     ): Response<SimpleMessageDto>
+
+    // ---- Accounts (§4.23) ----
+
+    @GET("api/accounts/")
+    suspend fun accounts(): Response<List<RemoteAccountDto>>
+
+    @POST("api/accounts/")
+    suspend fun addAccount(@Body body: AccountCreateRequest): Response<RemoteAccountDto>
+
+    @DELETE("api/accounts/{id}")
+    suspend fun deleteAccount(@Path("id") id: Long): Response<ResponseBody>
 
     // ---- Devices (FCM) ----
 

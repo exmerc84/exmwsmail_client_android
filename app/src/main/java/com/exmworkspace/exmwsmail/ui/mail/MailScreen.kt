@@ -143,6 +143,9 @@ fun MailScreen(
     val sharesLoading by viewModel.sharesLoading.collectAsState()
     val displayName by viewModel.displayName.collectAsState()
     val followupCount by viewModel.followupCount.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
+    val activeAccount by viewModel.activeAccount.collectAsState()
+    var showAccounts by remember { mutableStateOf(false) }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -266,7 +269,17 @@ fun MailScreen(
                             label = stringResource(R.string.new_folder),
                             onClick = { showCreateFolder = true },
                         )
-                        UserCard(displayName = displayName, email = userEmail)
+                        UserCard(
+                            // Standing in an auxiliary mailbox, the card names *it* — the
+                            // display name belongs to the login identity, not to the aux.
+                            displayName = if (activeAccount == null) displayName else "",
+                            email = userEmail,
+                            showSwitcher = true,
+                            onClick = {
+                                viewModel.refreshAccounts()
+                                showAccounts = true
+                            },
+                        )
                         quota?.let { QuotaBar(used = it.used, total = it.total) }
                         DrawerActionCard(
                             icon = Icons.Default.NotificationsActive,
@@ -478,6 +491,17 @@ fun MailScreen(
                 manageFolder = null
             },
             onDismiss = { manageFolder = null },
+        )
+    }
+
+    if (showAccounts) {
+        AccountSwitcherSheet(
+            accounts = accounts,
+            activeServerId = activeAccount?.serverId,
+            onSelect = viewModel::switchAccount,
+            onAdd = viewModel::addAccount,
+            onDelete = viewModel::deleteAccount,
+            onDismiss = { showAccounts = false },
         )
     }
 

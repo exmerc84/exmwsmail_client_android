@@ -16,7 +16,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import com.exmworkspace.exmwsmail.data.remote.dto.FolderShareDto
+import com.exmworkspace.exmwsmail.data.prefs.ActiveAccount
 import com.exmworkspace.exmwsmail.data.remote.dto.QuotaDto
+import com.exmworkspace.exmwsmail.data.remote.dto.RemoteAccountDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -181,6 +183,7 @@ class MailViewModel(
         // A decoration: it loads on its own and never blocks or fails the screen.
         viewModelScope.launch { _quota.value = mailRepository.quota() }
         refreshFollowupCount()
+        refreshAccounts()
         // Auto-select INBOX once folders are available, but don't override user selection.
         viewModelScope.launch {
             folders.filter { it.isNotEmpty() }.first().also { list ->
@@ -194,13 +197,81 @@ class MailViewModel(
 
     private suspend fun bootstrap() {
         try {
-            val email = authRepository.currentEmail() ?: return
+            // The active auxiliary mailbox if one is selected (§4.23); the interceptor is
+            // already stamping X-Account-Id on every mail request, so the local partition
+            // must match or the cache would file another account's mail under this one.
+            val email = authRepository.activeMailEmail() ?: return
             _userEmail.value = email
             val id = mailRepository.ensureAccount(email)
             accountId.value = id
             mailRepository.syncFolders(id)
         } catch (e: Exception) {
             _error.update { authRepository.describeFailure(e) }
+        }
+    }
+
+    // ---- Accounts (§4.23) ----
+
+    private val _accounts = MutableStateFlow<List<RemoteAccountDto>>(emptyList())
+    val accounts: StateFlow<List<RemoteAccountDto>> = _accounts.asStateFlow()
+
+    /** Null when standing in the primary mailbox. */
+    val activeAccount: StateFlow<ActiveAccount?> = authRepository.activeAccount
+
+
+    fun refreshAccounts() {
+        viewModelScope.launch {
+            // Decorative like the quota: a failed load keeps the previous list.
+            runCatching { mailRepository.remoteAccounts() }
+                .onSuccess { _accounts.value = it }
+        }
+    }
+
+    /**
+     * Re-points the whole screen at another mailbox. Order matters: the store first (the
+     * interceptor reads it), then a fresh bootstrap so folders/messages re-partition, then
+     * folder auto-select — the old selection belongs to the previous account.
+     */
+    fun switchAccount(account: RemoteAccountDto?) {
+        val current = activeAccount.value?.serverId
+        val target = account?.takeIf { !it.isDefault }
+        if (current == target?.id) return
+        authRepository.setActiveAccount(target?.let { ActiveAccount(it.id, it.email) })
+        selectedFolderId.value = null
+        _selectedCategory.value = MailCategory.ALL
+        _error.value = null
+        viewModelScope.launch {
+            bootstrap()
+            folders.filter { it.isNotEmpty() }.first().also { list ->
+                if (selectedFolderId.value == null) {
+                    val inbox = list.firstOrNull { it.kind == FolderKind.INBOX } ?: list.firstOrNull()
+                    inbox?.let { selectFolder(it.id) }
+                }
+            }
+        }
+    }
+
+    fun addAccount(email: String, password: String, displayName: String?) {
+        viewModelScope.launch {
+            try {
+                mailRepository.addRemoteAccount(email, password, displayName)
+                refreshAccounts()
+            } catch (e: Exception) {
+                _error.update { authRepository.describeFailure(e) }
+            }
+        }
+    }
+
+    fun deleteAccount(account: RemoteAccountDto) {
+        viewModelScope.launch {
+            try {
+                mailRepository.deleteRemoteAccount(account.id)
+                // Standing in the mailbox that was just removed → fall back to primary.
+                if (activeAccount.value?.serverId == account.id) switchAccount(null)
+                refreshAccounts()
+            } catch (e: Exception) {
+                _error.update { authRepository.describeFailure(e) }
+            }
         }
     }
 

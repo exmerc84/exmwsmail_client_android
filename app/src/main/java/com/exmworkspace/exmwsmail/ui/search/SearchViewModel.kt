@@ -44,7 +44,7 @@ class SearchViewModel(
 
     init {
         viewModelScope.launch {
-            val email = authRepository.currentEmail() ?: return@launch
+            val email = authRepository.activeMailEmail() ?: return@launch
             accountId.value = mailRepository.ensureAccount(email)
         }
     }

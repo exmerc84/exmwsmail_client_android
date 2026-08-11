@@ -1,5 +1,6 @@
 package com.exmworkspace.exmwsmail.data.repository
 
+import com.exmworkspace.exmwsmail.data.prefs.ActiveAccount
 import com.exmworkspace.exmwsmail.data.prefs.TokenStore
 import com.exmworkspace.exmwsmail.data.remote.ApiException
 import com.exmworkspace.exmwsmail.data.remote.AuthApi
@@ -42,6 +43,18 @@ class AuthRepository(
     }
 
     suspend fun currentEmail(): String? = tokenStore.email.value
+
+    /**
+     * The mailbox the UI is standing in (§4.23): the active auxiliary account, or the login
+     * account when none is selected. Every mail surface that partitions local state by email
+     * must use this one — [currentEmail] answers the *login* identity, which stays primary.
+     */
+    fun activeMailEmail(): String? =
+        tokenStore.activeAccount.value?.email ?: tokenStore.email.value
+
+    val activeAccount: StateFlow<ActiveAccount?> = tokenStore.activeAccount
+
+    fun setActiveAccount(account: ActiveAccount?) = tokenStore.setActiveAccount(account)
 
     suspend fun signIn(
         email: String,

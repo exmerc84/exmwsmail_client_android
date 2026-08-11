@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -347,7 +348,14 @@ internal fun formatBytes(bytes: Long): String {
 }
 
 @Composable
-internal fun UserCard(displayName: String, email: String?) {
+internal fun UserCard(
+    displayName: String,
+    email: String?,
+    /** Non-null turns the card into the account switcher entry (§4.23). */
+    onClick: (() -> Unit)? = null,
+    /** More than one mailbox — show the affordance that there is something to switch. */
+    showSwitcher: Boolean = false,
+) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -359,6 +367,7 @@ internal fun UserCard(displayName: String, email: String?) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .let { if (onClick != null) it.clickable(onClick = onClick) else it }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -396,6 +405,14 @@ internal fun UserCard(displayName: String, email: String?) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            if (showSwitcher) {
+                Icon(
+                    imageVector = Icons.Default.UnfoldMore,
+                    contentDescription = stringResource(R.string.accounts_title),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
     }
