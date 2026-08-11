@@ -574,7 +574,10 @@ internal fun HtmlPart(html: String) {
                 isVerticalScrollBarEnabled = false
                 isHorizontalScrollBarEnabled = false
                 overScrollMode = WebView.OVER_SCROLL_NEVER
-                setBackgroundColor(0x00000000)
+                // Opaque white to match the stylesheet: a transparent WebView over a dark
+                // surface shows through wherever the message does not paint its own
+                // background, which is most plain-text and forwarded mail.
+                setBackgroundColor(0xFFFFFFFF.toInt())
                 webViewClient = InlineImageWebViewClient(httpClient) { view ->
                     view.post { contentHeightDp = view.contentHeight.coerceAtLeast(40) }
                     view.postDelayed({

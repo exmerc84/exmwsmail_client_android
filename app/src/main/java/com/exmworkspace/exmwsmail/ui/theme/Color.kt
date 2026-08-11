@@ -1,9 +1,12 @@
 package com.exmworkspace.exmwsmail.ui.theme
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Offset
 
 // Palette lifted from the webmail's own stylesheet (webmail.exmworkspace.com/login) so the
@@ -63,6 +66,18 @@ object ExmBrand {
     val fieldFill = Color(0xFFE8F0FE)
     val fieldFillDark = Color(0xFF1E2438)
     val fieldBorder = Slate200
+
+    /**
+     * The field fill for the scheme actually in effect.
+     *
+     * Read off the scheme's own luminance rather than [isSystemInDarkTheme] so it stays
+     * correct if the app ever pins a theme regardless of the device. The dark variant existed
+     * from the start but nothing ever selected it, so in dark mode the login drew near-white
+     * text on a pale blue field — invisible.
+     */
+    val fieldFillFor: Color
+        @Composable get() =
+            if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) fieldFillDark else fieldFill
 
     val onHero = Color.White
     val onHeroMuted = Indigo200

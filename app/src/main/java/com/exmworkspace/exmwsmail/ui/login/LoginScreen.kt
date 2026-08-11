@@ -129,7 +129,7 @@ fun LoginScreen(
                 onValueChange = viewModel::onEmailChange,
                 label = stringResource(R.string.login_email_label),
                 placeholder = "tu@correo.com",
-                fill = ExmBrand.fieldFill,
+                fill = ExmBrand.fieldFillFor,
                 enabled = !state.submitting,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
@@ -145,7 +145,7 @@ fun LoginScreen(
                 onValueChange = viewModel::onPasswordChange,
                 label = stringResource(R.string.login_password_label),
                 placeholder = "••••••••",
-                fill = ExmBrand.fieldFill,
+                fill = ExmBrand.fieldFillFor,
                 enabled = !state.submitting,
                 visualTransformation = if (passwordVisible) VisualTransformation.None
                 else PasswordVisualTransformation(),

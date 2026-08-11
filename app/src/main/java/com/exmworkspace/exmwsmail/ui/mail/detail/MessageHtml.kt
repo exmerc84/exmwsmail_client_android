@@ -115,7 +115,13 @@ internal fun wrapHtmlForViewport(html: String): String {
     <style>
       html, body {
         margin: 0 !important;
-        background: transparent !important;
+        /* White, not transparent — and white in dark mode too. A message's HTML picks its
+           own colours for a light background (this one hard-codes #1f2937 text, senders do
+           the same), so letting the app's surface show through turned every forwarded header
+           into dark-grey text on a dark-grey screen. Rendering mail on "paper" is what Gmail
+           and Outlook do for exactly this reason: the sender's markup cannot be re-themed
+           safely. */
+        background: #ffffff !important;
         width: 100% !important;
         max-width: 100% !important;
         overflow-x: hidden !important;
