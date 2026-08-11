@@ -38,6 +38,16 @@ class MailMessagingService : FirebaseMessagingService() {
         val app = applicationContext as? MailApplication ?: return
         val container = app.container
 
+        // Which mailbox the mail landed in (§4.23) vs. which one every request currently
+        // resolves to. They differ whenever the user is standing in another account, and
+        // syncing then would be actively harmful: the interceptor scopes the fetch to the
+        // *selected* account while the rows get filed under the pushed one — two mailboxes
+        // mixed in one local partition. When they disagree, notify without syncing.
+        val pushedAccountId = data["account_id"]?.toLongOrNull()
+        val scopedAccountId = container.tokenStore.scopedAccountServerId
+        val sameMailbox = pushedAccountId == null || scopedAccountId == null ||
+            pushedAccountId == scopedAccountId
+
         // Sync first, notify after: the freshly cached row supplies sender/subject when the
         // payload lacks them, and the folder's unseen counter becomes the badge number.
         //
@@ -48,8 +58,10 @@ class MailMessagingService : FirebaseMessagingService() {
         // still posts from the payload's own fields.
         var unread = 0
         var cached: MessageEntity? = null
-        val accountEmail = container.tokenStore.email.value
-        if (accountEmail != null) {
+        // The mailbox on screen, not the login identity: standing in an auxiliary, its mail
+        // must be cached under its own account row.
+        val accountEmail = container.authRepository.activeMailEmail()
+        if (accountEmail != null && sameMailbox) {
             runBlocking {
                 withTimeoutOrNull(SYNC_BUDGET_MS) {
                     runCatching {

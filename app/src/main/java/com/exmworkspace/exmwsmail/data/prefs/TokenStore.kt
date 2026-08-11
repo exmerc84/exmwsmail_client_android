@@ -101,6 +101,23 @@ class TokenStore(context: Context) : TokenSession {
     val activeAccountServerId: Long?
         get() = prefs.getLong(KEY_ACTIVE_ACCOUNT_ID, -1L).takeIf { it >= 0 }
 
+    /**
+     * Server id of the primary mailbox (`is_default`), learned from `GET /api/accounts/`.
+     *
+     * Needed by the push path: FCM's `account_id` says which mailbox a message landed in,
+     * and comparing it against the mailbox the app is pointed at is the only way to know
+     * whether syncing is safe. Null until the account list has been fetched once.
+     */
+    var primaryAccountServerId: Long?
+        get() = prefs.getLong(KEY_PRIMARY_ACCOUNT_ID, -1L).takeIf { it >= 0 }
+        set(value) {
+            prefs.edit().putLong(KEY_PRIMARY_ACCOUNT_ID, value ?: -1L).apply()
+        }
+
+    /** Server id of the mailbox every mail request currently resolves to. */
+    val scopedAccountServerId: Long?
+        get() = activeAccountServerId ?: primaryAccountServerId
+
     fun setActiveAccount(account: ActiveAccount?) {
         prefs.edit()
             .putLong(KEY_ACTIVE_ACCOUNT_ID, account?.serverId ?: -1L)
@@ -151,6 +168,7 @@ class TokenStore(context: Context) : TokenSession {
         private const val KEY_FCM_TOKEN = "fcm_token"
         private const val KEY_ACTIVE_ACCOUNT_ID = "active_account_id"
         private const val KEY_ACTIVE_ACCOUNT_EMAIL = "active_account_email"
+        private const val KEY_PRIMARY_ACCOUNT_ID = "primary_account_id"
         private const val REFRESH_MARGIN_MS = 120_000L
     }
 }

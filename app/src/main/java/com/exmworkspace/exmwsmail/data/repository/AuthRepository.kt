@@ -56,6 +56,11 @@ class AuthRepository(
 
     fun setActiveAccount(account: ActiveAccount?) = tokenStore.setActiveAccount(account)
 
+    /** Remembered for the push path, which has to tell mailboxes apart by server id. */
+    fun rememberPrimaryAccountId(id: Long?) {
+        tokenStore.primaryAccountServerId = id
+    }
+
     suspend fun signIn(
         email: String,
         password: String,

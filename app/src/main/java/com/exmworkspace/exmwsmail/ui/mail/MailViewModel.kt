@@ -225,6 +225,9 @@ class MailViewModel(
             runCatching { mailRepository.remoteAccounts() }
                 .onSuccess {
                     _accounts.value = it
+                    authRepository.rememberPrimaryAccountId(
+                        it.firstOrNull { account -> account.isDefault }?.id
+                    )
                     dropActiveAccountIfGone(it)
                 }
         }
