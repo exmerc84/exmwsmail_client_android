@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#FFFFFFFF" />
-</shape>
+<!--
+  Flat slate, sampled from the reference the user chose (#4F5D73). Flat, not a gradient:
+  the whole point of this mark is that one shape carries it.
+
+  The launcher masks this 108dp canvas down to whatever silhouette it uses (circle, squircle,
+  rounded square), so the fill covers the full canvas and the mask decides the shape.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M0,0h108v108h-108z"
+        android:fillColor="#FF4F5D73" />
+</vector>

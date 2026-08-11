@@ -1,7 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:inset="20%">
-    <bitmap
-        android:src="@mipmap/ic_launcher"
-        android:gravity="center" />
-</inset>
+<!--
+  The @ on its own — the reference the user picked, rebuilt as vector geometry.
+
+  Proportions come from measuring the reference bitmap rather than eyeballing it: the ring
+  fills about 64% of the badge's radius and the bowl about 60% of the ring, which is what
+  makes it read as a friendly @ instead of a thin technical one. Reproduced here against the
+  adaptive-icon safe circle (radius 33 from centre 54,54): ring radius 23 plus a 5 stroke
+  lands at 25.5, comfortably inside, so no launcher mask can bite into it.
+
+  The ring opens on the lower right and the bowl's stem runs down into that opening, which is
+  the detail that separates an @ from a circle-inside-a-circle at launcher size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer ring, open on the lower right -->
+    <path
+        android:pathData="M59.95,76.2 A23,23 0 1 1 74.8,63.7"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- Bowl -->
+    <path
+        android:pathData="M41,54 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5" />
+
+    <!-- Stem: from the bowl's right edge down into the ring's opening -->
+    <path
+        android:pathData="M67,51.5 C70.2,58 71.6,62 74.6,63.6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+</vector>
