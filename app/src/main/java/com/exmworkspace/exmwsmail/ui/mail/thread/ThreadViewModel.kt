@@ -109,7 +109,13 @@ class ThreadViewModel(
     private fun expand(messageId: Long) {
         _expandedId.value = messageId
         viewModelScope.launch {
-            runCatching { mailRepository.markRead(messageId) }
+            // Auto-mark-read is a write: skipped in read-only shared folders, where the
+            // backend answers 403 (§4.20) and the seen flag is the owner's, not ours.
+            val folder = mailRepository.findMessage(messageId)
+                ?.let { mailRepository.findFolder(it.folderId) }
+            if (folder?.canWrite != false) {
+                runCatching { mailRepository.markRead(messageId) }
+            }
             try {
                 mailRepository.ensureBodyDownloaded(messageId)
             } catch (e: Exception) {

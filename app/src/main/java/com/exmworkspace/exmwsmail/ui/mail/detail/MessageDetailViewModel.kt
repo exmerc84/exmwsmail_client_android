@@ -77,13 +77,18 @@ class MessageDetailViewModel(
 
     init {
         viewModelScope.launch {
-            val msg = mailRepository.findMessage(messageId) ?: return@launch
-            val folder = mailRepository.findFolder(msg.folderId) ?: return@launch
-            _currentFolder.value = folder
-            accountId.value = folder.accountId
-        }
-        viewModelScope.launch {
-            runCatching { mailRepository.markRead(messageId) }
+            // One sequence, folder first: marking read is a write, and §4.20 answers 403 to
+            // any write in a read-only shared folder — so the auto-mark must know where it
+            // is before it fires. Reading someone's shared mail must not mark it for them.
+            val msg = mailRepository.findMessage(messageId)
+            val folder = msg?.let { mailRepository.findFolder(it.folderId) }
+            if (folder != null) {
+                _currentFolder.value = folder
+                accountId.value = folder.accountId
+            }
+            if (folder?.canWrite != false) {
+                runCatching { mailRepository.markRead(messageId) }
+            }
             try {
                 mailRepository.ensureBodyDownloaded(messageId)
             } catch (e: Exception) {

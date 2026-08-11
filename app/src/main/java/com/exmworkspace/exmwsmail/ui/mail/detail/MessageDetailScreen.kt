@@ -269,6 +269,7 @@ fun MessageDetailScreen(
                     onBack()
                 },
                 onDelete = viewModel::deleteMessage,
+                canWrite = currentFolder?.canWrite ?: true,
             )
         },
     ) { padding ->
@@ -621,6 +622,8 @@ internal fun DetailActionBar(
     onToggleFlag: () -> Unit,
     onMarkUnread: () -> Unit,
     onDelete: () -> Unit,
+    /** False in a read-only shared folder: every write answers 403 there (§4.20). */
+    canWrite: Boolean = true,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -645,27 +648,31 @@ internal fun DetailActionBar(
                 label = stringResource(R.string.forward),
                 onClick = onForward,
             )
-            DetailAction(
-                // The API calls this pin (§4.6) and so does the webmail; "destacar" made it
-                // read like a separate, second flag next to the colour ones.
-                icon = if (isFlagged) Icons.Default.PushPin else Icons.Outlined.PushPin,
-                label = if (isFlagged) stringResource(R.string.unpin) else stringResource(R.string.pin),
-                tint = if (isFlagged) MaterialTheme.colorScheme.primary else null,
-                onClick = onToggleFlag,
-            )
-            DetailAction(
-                icon = Icons.Default.MarkEmailUnread,
-                label = stringResource(R.string.mark_unread),
-                onClick = onMarkUnread,
-            )
-            DetailAction(
-                icon = Icons.Default.Delete,
-                label = stringResource(R.string.delete),
-                tint = MaterialTheme.colorScheme.error,
-                enabled = !busy,
-                loading = busy,
-                onClick = onDelete,
-            )
+            // Reply/forward survive read-only shares — they write to the user's own Sent,
+            // not to the shared folder. The three below do write here, so they go.
+            if (canWrite) {
+                DetailAction(
+                    // The API calls this pin (§4.6) and so does the webmail; "destacar" made
+                    // it read like a separate, second flag next to the colour ones.
+                    icon = if (isFlagged) Icons.Default.PushPin else Icons.Outlined.PushPin,
+                    label = if (isFlagged) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                    tint = if (isFlagged) MaterialTheme.colorScheme.primary else null,
+                    onClick = onToggleFlag,
+                )
+                DetailAction(
+                    icon = Icons.Default.MarkEmailUnread,
+                    label = stringResource(R.string.mark_unread),
+                    onClick = onMarkUnread,
+                )
+                DetailAction(
+                    icon = Icons.Default.Delete,
+                    label = stringResource(R.string.delete),
+                    tint = MaterialTheme.colorScheme.error,
+                    enabled = !busy,
+                    loading = busy,
+                    onClick = onDelete,
+                )
+            }
         }
     }
 }

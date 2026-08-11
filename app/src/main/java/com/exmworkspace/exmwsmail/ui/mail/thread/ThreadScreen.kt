@@ -219,6 +219,7 @@ fun ThreadScreen(
                         onBack()
                     },
                     onDelete = viewModel::deleteExpanded,
+                    canWrite = currentFolder?.canWrite ?: true,
                 )
             }
         },
