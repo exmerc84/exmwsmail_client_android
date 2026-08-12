@@ -285,14 +285,21 @@ fun ComposeScreen(
                     onSend = viewModel::send,
                     onToggleFormat = { formatPanelOpen = !formatPanelOpen },
                     onAttach = { attachSourceOpen = true },
-                    onAiDraft = if (viewModel.composeMode == ComposeMode.REPLY ||
-                        viewModel.composeMode == ComposeMode.FORWARD
+                    onAiDraft = if (viewModel.composeMode != ComposeMode.NEW &&
+                        viewModel.composeMode != ComposeMode.DRAFT
                     ) viewModel::requestAiDraft else null,
                 )
                 Text(
+                    // Name what the user is actually doing: every reply used to open under
+                    // "Nuevo mensaje", which reads as having lost the thread.
                     text = stringResource(
-                        if (viewModel.composeMode == ComposeMode.DRAFT) R.string.edit_draft
-                        else R.string.new_message
+                        when (viewModel.composeMode) {
+                            ComposeMode.DRAFT -> R.string.edit_draft
+                            ComposeMode.REPLY -> R.string.reply
+                            ComposeMode.REPLY_ALL -> R.string.reply_all
+                            ComposeMode.FORWARD -> R.string.forward
+                            ComposeMode.NEW -> R.string.new_message
+                        }
                     ),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,

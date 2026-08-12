@@ -89,4 +89,4 @@ data class ComposeUiState(
             subject.isBlank() && body.text.isBlank() && attachments.isEmpty()
 }
 
-enum class ComposeMode { NEW, REPLY, FORWARD, DRAFT }
+enum class ComposeMode { NEW, REPLY, REPLY_ALL, FORWARD, DRAFT }

@@ -212,6 +212,7 @@ fun MailNavHost(onSignOut: () -> Unit) {
                 messageId = id,
                 onBack = { navController.popBackStack() },
                 onReply = { navController.navigate("compose?messageId=$id&mode=reply") },
+                onReplyAll = { navController.navigate("compose?messageId=$id&mode=replyAll") },
                 onForward = { navController.navigate("compose?messageId=$id&mode=forward") },
                 onViewSource = { mode -> navController.navigate("source/$id?mode=${mode.name}") },
             )

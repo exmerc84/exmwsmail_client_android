@@ -199,16 +199,18 @@ private fun QuotedHtmlView(html: String) {
                 settings.builtInZoomControls = false
                 settings.displayZoomControls = false
                 settings.useWideViewPort = false
-                settings.loadWithOverviewMode = false
+                // The same safety net the detail view uses: if some element still overflows,
+                // the page zooms out instead of laying out wider than the view.
+                settings.loadWithOverviewMode = true
                 isVerticalScrollBarEnabled = false
                 overScrollMode = WebView.OVER_SCROLL_NEVER
-                setBackgroundColor(0x00000000)
+                setBackgroundColor(0xFFFFFFFF.toInt())
                 // The quoted body carries the original's inline images as API URLs, which
                 // only load with the session's Bearer token.
                 webViewClient = InlineImageWebViewClient(httpClient) { view ->
-                    view.post { contentHeightDp = view.contentHeight.coerceAtLeast(40) }
+                    view.post { contentHeightDp = view.measuredContentHeightDp() }
                     view.postDelayed({
-                        contentHeightDp = view.contentHeight.coerceAtLeast(40)
+                        contentHeightDp = view.measuredContentHeightDp()
                     }, 250)
                 }
             }
@@ -232,6 +234,22 @@ internal fun playSendSound(context: android.content.Context) {
     }
 }
 
+/**
+ * Height the quote actually occupies, in dp.
+ *
+ * `contentHeight` is in CSS pixels at scale 1; once `loadWithOverviewMode` zooms a wide mail
+ * out, the rendered height is that number times the scale. Reading it raw is what made the
+ * card balloon on exactly the mails that needed zooming out. Capped as a last resort so a
+ * pathological page cannot hand back a card thousands of dp tall.
+ */
+private fun WebView.measuredContentHeightDp(): Int {
+    @Suppress("DEPRECATION")
+    val scaled = (contentHeight * scale).toInt()
+    return scaled.coerceIn(40, MAX_QUOTE_HEIGHT_DP)
+}
+
+private const val MAX_QUOTE_HEIGHT_DP = 2400
+
 private fun wrapQuotedHtml(html: String): String = """
     <!DOCTYPE html>
     <html>
@@ -239,10 +257,16 @@ private fun wrapQuotedHtml(html: String): String = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-      html, body { margin: 0; padding: 0; background: transparent; }
+      /* White, like the message detail: the original's markup picks its colours for a light
+         background, and on a dark theme a transparent body left it grey-on-grey. */
+      html, body { margin: 0; padding: 0; background: #ffffff; width: 100%; max-width: 100%; overflow-x: hidden; }
       body { font-family: sans-serif; font-size: 14px; line-height: 1.4; padding: 12px; word-wrap: break-word; overflow-wrap: anywhere; color: #1f2937; }
+      /* Cap every element, the way the detail view does. Without this a marketing mail with
+         a fixed 600px table laid out at its natural width, and the height the WebView then
+         reported stretched the quote card far past its actual content — a tall empty box. */
+      * { max-width: 100% !important; box-sizing: border-box !important; }
       img { max-width: 100%; height: auto; }
-      table { max-width: 100%; }
+      table { max-width: 100%; table-layout: fixed; }
       pre { white-space: pre-wrap; word-wrap: break-word; }
       blockquote { margin-left: 8px; padding-left: 8px; border-left: 2px solid #cbd5e1; color: #4b5563; }
       a { color: #1a73e8; }

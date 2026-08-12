@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -74,6 +75,7 @@ import com.exmworkspace.exmwsmail.ui.ai.AiResultSheet
 import com.exmworkspace.exmwsmail.ui.ai.TranslateLanguage
 import com.exmworkspace.exmwsmail.ui.ai.TranslateLanguageSheet
 import com.exmworkspace.exmwsmail.ui.followups.RemindMeSheet
+import com.exmworkspace.exmwsmail.data.mail.hasMultipleRecipients
 import com.exmworkspace.exmwsmail.ui.mail.MessageActionsSheet
 import com.exmworkspace.exmwsmail.ui.mail.sortedForDrawer
 import com.exmworkspace.exmwsmail.ui.mailContainer
@@ -88,6 +90,7 @@ fun MessageDetailScreen(
     messageId: Long,
     onBack: () -> Unit,
     onReply: () -> Unit = {},
+    onReplyAll: () -> Unit = {},
     onForward: () -> Unit = {},
     onViewSource: (SourceMode) -> Unit = {},
     viewModel: MessageDetailViewModel = viewModel(factory = MessageDetailViewModel.factoryFor(messageId)),
@@ -273,6 +276,11 @@ fun MessageDetailScreen(
                 },
                 onDelete = viewModel::deleteMessage,
                 canWrite = currentFolder?.canWrite ?: true,
+                // Offered only when the mail actually reached more than one person.
+                // Offered only when the mail actually reached more than one person.
+                onReplyAll = onReplyAll.takeIf {
+                    hasMultipleRecipients(detail.message?.to, detail.message?.cc)
+                },
             )
         },
     ) { padding ->
@@ -641,6 +649,12 @@ internal fun DetailActionBar(
     onDelete: () -> Unit,
     /** False in a read-only shared folder: every write answers 403 there (§4.20). */
     canWrite: Boolean = true,
+    /**
+     * Null when the message has no second recipient. Reply-all earns its slot only on mail
+     * that actually went to several people; on a one-to-one it would duplicate Responder and
+     * cost the bar a sixth item for nothing.
+     */
+    onReplyAll: (() -> Unit)? = null,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -660,6 +674,13 @@ internal fun DetailActionBar(
                 label = stringResource(R.string.reply),
                 onClick = onReply,
             )
+            if (onReplyAll != null) {
+                DetailAction(
+                    icon = Icons.AutoMirrored.Filled.ReplyAll,
+                    label = stringResource(R.string.reply_all_short),
+                    onClick = onReplyAll,
+                )
+            }
             DetailAction(
                 icon = Icons.AutoMirrored.Filled.Send,
                 label = stringResource(R.string.forward),
@@ -742,4 +763,5 @@ internal fun DetailAction(
         )
     }
 }
+
 

@@ -251,6 +251,8 @@
     <!-- Message Detail -->
     <string name="back_button">Volver</string>
     <string name="reply">Responder</string>
+    <string name="reply_all_short">Todos</string>
+    <string name="reply_all">Responder a todos</string>
     <string name="forward">Reenviar</string>
     <string name="pin">Fijar</string>
     <string name="unpin">No fijar</string>

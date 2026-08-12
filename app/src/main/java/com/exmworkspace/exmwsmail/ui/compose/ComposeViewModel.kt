@@ -106,7 +106,7 @@ class ComposeViewModel(
                     subject = current.subject,
                     messages = listOf(context),
                     myDraft = current.body.text,
-                    isReply = mode == ComposeMode.REPLY,
+                    isReply = isAnyReply,
                 )
             } catch (e: Exception) {
                 _state.update { it.copy(error = authRepository.describeFailure(e)) }
@@ -134,10 +134,15 @@ class ComposeViewModel(
 
     private val mode: ComposeMode = when (savedStateHandle.get<String>("mode")) {
         "reply" -> ComposeMode.REPLY
+        "replyAll" -> ComposeMode.REPLY_ALL
         "forward" -> ComposeMode.FORWARD
         "draft" -> ComposeMode.DRAFT
         else -> ComposeMode.NEW
     }
+
+    /** Both reply flavours quote, thread and prefill the same way; only the CC differs. */
+    private val isAnyReply: Boolean
+        get() = mode == ComposeMode.REPLY || mode == ComposeMode.REPLY_ALL
 
     /**
      * Identifies this composer window server-side. Drafts are per-window, not per-user, so
@@ -270,7 +275,7 @@ class ComposeViewModel(
             subject = current.subject,
             body = if (isHtml) bodyToHtml(current) else current.body.text,
             isHtml = isHtml,
-            inReplyTo = originalMessageIdHeader.takeIf { mode == ComposeMode.REPLY },
+            inReplyTo = originalMessageIdHeader.takeIf { isAnyReply },
             references = replyReferences(),
             forwardOf = originalMessageIdHeader.takeIf { mode == ComposeMode.FORWARD },
             attachments = current.attachments,
@@ -328,7 +333,7 @@ class ComposeViewModel(
                 .format(Date(msg.internalDate.takeIf { it > 0 } ?: System.currentTimeMillis()))
             val originalHtml = buildOriginalHtml(detail.body?.text, detail.body?.html)
             val (newSubject, prefilledTo, header) = when (mode) {
-                ComposeMode.REPLY -> Triple(
+                ComposeMode.REPLY, ComposeMode.REPLY_ALL -> Triple(
                     addPrefixIfMissing(msg.subject, "Re:"),
                     listOfNotNull(fromAddr),
                     "El $whenLine, ${msg.from} escribió:",
@@ -344,9 +349,27 @@ class ComposeViewModel(
                 // DRAFT returned above; NEW never reaches prefill.
                 ComposeMode.NEW, ComposeMode.DRAFT -> Triple(msg.subject, emptyList(), null)
             }
+            // Reply-all keeps everyone who was already on the thread, minus the sender (they
+            // are on To) and minus the user's own address — replying to yourself is noise,
+            // and on an auxiliary mailbox "yourself" is that mailbox, not the login account.
+            val replyAllCc = if (mode == ComposeMode.REPLY_ALL) {
+                val me = authRepository.activeMailEmail().orEmpty()
+                (splitAddresses(msg.to) + splitAddresses(msg.cc))
+                    .map { addr -> parseFirstAddress(addr) ?: addr }
+                    .filter { addr ->
+                        addr.isNotBlank() &&
+                            !addr.equals(fromAddr, ignoreCase = true) &&
+                            !addr.equals(me, ignoreCase = true)
+                    }
+                    .distinctBy { addr -> addr.lowercase() }
+            } else {
+                emptyList()
+            }
             _state.update {
                 it.copy(
                     to = prefilledTo,
+                    cc = replyAllCc,
+                    ccBccExpanded = replyAllCc.isNotEmpty(),
                     subject = newSubject,
                     body = TextFieldValue("", selection = androidx.compose.ui.text.TextRange(0, 0)),
                     quotedHtml = if (mode == ComposeMode.NEW) null else originalHtml,
@@ -915,7 +938,7 @@ class ComposeViewModel(
      * both to keep a reply-to-a-reply in the same thread (§4.12).
      */
     private fun replyReferences(): List<String> {
-        if (mode != ComposeMode.REPLY) return emptyList()
+        if (!isAnyReply) return emptyList()
         val chain = originalReferences?.trim()?.split(Regex("\\s+")).orEmpty()
         return (chain + listOfNotNull(originalMessageIdHeader))
             .filter { it.isNotBlank() }
